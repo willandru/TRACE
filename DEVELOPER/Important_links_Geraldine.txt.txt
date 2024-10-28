@@ -1,0 +1,9 @@
+CRAN Repository Policy: https://cran.r-project.org/web/packages/policies.html
+
+Checklist for CRAN submissions: https://cran.r-project.org/web/packages/submission_checklist.html
+
+extrachecks: https://github.com/DavisVaughan/extrachecks
+
+22  Releasing to CRAN: https://r-pkgs.org/release.html
+
+The Epiverse-TRACE blueprints for software development: https://epiverse-trace.github.io/blueprints/
