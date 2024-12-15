@@ -1,0 +1,456 @@
+import streamlit as st
+import requests
+import pandas as pd
+import plotly.express as px
+from datetime import datetime
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import itertools
+
+import matplotlib.dates as mdates
+
+from matplotlib.cm import get_cmap
+
+
+
+
+
+
+
+# Declaracion de Funciones ----------------------------------------------------------------------------------------------
+# Function to fetch download data for a package from a specific date range
+def get_download_data(package_name, start_date, end_date):
+    url = f"https://cranlogs.r-pkg.org/downloads/daily/{start_date}:{end_date}/{package_name}"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        if "downloads" in data[0]:
+            return pd.DataFrame(data[0]["downloads"])
+        else:
+            return None
+    except requests.exceptions.RequestException:
+        return None
+
+# Function to fetch download data using the "last-month" endpoint
+def get_download_data_last_month(package_name):
+    url = f"https://cranlogs.r-pkg.org/downloads/daily/last-month/{package_name}"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        if "downloads" in data[0]:
+            return pd.DataFrame(data[0]["downloads"])
+        else:
+            return None
+    except requests.exceptions.RequestException as e:
+        print(f"Error while fetching data for {package_name}: {e}")
+        return None
+
+# Function to get metadata (version and publication date) from CRAN DB
+def get_package_metadata(package_name):
+    url = f"https://crandb.r-pkg.org/{package_name}/all"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        if 'timeline' in data:
+            timeline = data['timeline']
+            versions = list(timeline.keys())
+            dates = list(timeline.values())
+            return pd.DataFrame({
+                "package": [package_name] * len(versions), 
+                "version": versions, 
+                "first_cran_date": dates
+            })
+        else:
+            return pd.DataFrame({
+                "package": [package_name], 
+                "version": [None], 
+                "first_cran_date": [None]
+            })
+    except requests.exceptions.RequestException:
+        return pd.DataFrame({
+            "package": [package_name], 
+            "version": [None], 
+            "first_cran_date": [None]
+        })
+
+
+# Function to collect metadata for all packages
+def collect_metadata_for_packages(packages):
+    # Create an empty DataFrame to store metadata for all packages
+    metadata_all = pd.DataFrame()
+
+    # Collect metadata for all packages
+    for pkg in packages:
+        print(f"\nFetching metadata for package: {pkg}")
+        
+        # Get metadata (version and dates)
+        metadata_df = get_package_metadata(pkg)
+        
+        # Append metadata to the main DataFrame
+        metadata_all = pd.concat([metadata_all, metadata_df], ignore_index=True)
+
+    # Return the collected metadata
+    return metadata_all
+
+
+# Function to collect daily download data for all packages
+
+def collect_download_data(packages, start_date, end_date):
+    all_data = {}  # Dictionary to store data for each package, keyed by package name
+
+    for package in packages:
+        print(f"\nDownloading download data for package: {package}")
+
+        # Attempt to fetch data for the specified date range
+        data = get_download_data(package, start_date, end_date)
+        data_last_month = None
+
+        if data is not None and not data.empty:
+            print(f"\n**Download Data (Specific Date Range: {start_date} to {end_date}) for {package}:**")
+            print(data)
+
+            # Check if both start_date and end_date exist in the data
+            if pd.to_datetime(start_date) in pd.to_datetime(data['day']).values and pd.to_datetime(end_date) in pd.to_datetime(data['day']).values:
+                print(f"Both start_date ({start_date}) and end_date ({end_date}) are present in the data for {package}.")
+            else:
+                print(f"start_date ({start_date}) or end_date ({end_date}) is not present in the data for {package}. Downloading last-month data.")
+                data_last_month = get_download_data_last_month(package)
+                print(data_last_month)
+        else:
+            print(f"No data found for {package} for the specific date range. Using last-month data.")
+            data_last_month = get_download_data_last_month(package)
+
+        # Combine specific range data with last-month data if necessary
+        if data is not None and data_last_month is not None:
+            combined_data = pd.concat([data, data_last_month], ignore_index=True)
+        elif data is not None:
+            combined_data = data
+        elif data_last_month is not None:
+            combined_data = data_last_month
+        else:
+            combined_data = pd.DataFrame()  # Empty DataFrame if no data
+
+        # Add combined data to the dictionary if not empty
+        if not combined_data.empty:
+            # Ensure the data has a 'day' column
+            combined_data = combined_data.drop_duplicates()  # Remove duplicates
+            all_data[package] = combined_data.set_index('day')['downloads']
+
+    #Combinar todos los datos en un solo DataFrame, cada paquete como una columna
+
+    if all_data:
+        final_data = pd.DataFrame(all_data)
+        final_data.reset_index(inplace=True)  # Reset index to include 'day' as a column
+        final_data.rename(columns={"index": "day"}, inplace=True)  # Ensure 'day' is named explicitly
+        
+        # Ensure 'day' is a datetime type
+        final_data['day'] = pd.to_datetime(final_data['day'])
+        
+        # Generate a full range of dates from start_date to end_date
+        full_date_range = pd.date_range(start=pd.to_datetime(start_date), end=pd.to_datetime(end_date))
+        
+        # Reindex the DataFrame to ensure all dates are included
+        final_data = final_data.set_index('day').reindex(full_date_range, fill_value=0).reset_index()
+        
+        # Rename the reindexed date column back to 'day'
+        final_data.rename(columns={"index": "day"}, inplace=True)
+
+        # Ensure no NaN values remain
+        final_data.fillna(0, inplace=True)
+
+        print("\n**Final Combined Data with Each Package as a Column:**")
+        print(final_data)
+        return final_data
+    else:
+        print("No data collected for any package.")
+        return pd.DataFrame()  # Return empty DataFrame if no data
+
+
+
+# Generar la paleta compartida basada en Set2
+def generate_shared_color_palette(packages):
+    colormap = get_cmap("Set2")  # Usar Set2
+    colors = {package: colormap(idx / len(packages)) for idx, package in enumerate(packages)}
+    return colors
+# Configurar la página
+st.set_page_config(
+    page_title="Dashboard Dinámico",
+    page_icon=":bar_chart:",
+    layout="wide"
+)
+
+## PLOT 1
+
+def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
+    fig, ax = plt.subplots(figsize=(16, 6))  # Crear la figura y los ejes
+
+    # Asegurarse de que metadata contiene las columnas requeridas
+    if 'package' not in metadata.columns or 'first_cran_date' not in metadata.columns:
+        raise ValueError("Metadata DataFrame must contain 'package' and 'first_cran_date' columns.")
+
+    # Convertir 'day' y 'first_cran_date' a formato datetime.date para comparación
+    dataframe['day'] = pd.to_datetime(dataframe['day']).dt.date
+    metadata['first_cran_date'] = pd.to_datetime(metadata['first_cran_date']).dt.date
+
+    # Variable para verificar si se añadió la leyenda del marcador de lanzamiento
+    release_marker_added = False
+
+    # Graficar descargas diarias para cada paquete
+    for column in dataframe.columns[1:]:  # Omitir la columna 'day'
+        # Buscar la fecha de publicación para el paquete en metadata
+        publication_date = metadata.loc[metadata['package'] == column, 'first_cran_date']
+        color = color_palette[column]  # Usar el color de la paleta compartida
+
+        if not publication_date.empty:
+            pub_date = publication_date.values[0]  # Obtener la fecha como datetime.date
+
+            # Dividir los datos en dos partes: antes y después de la fecha de lanzamiento
+            before_release = dataframe[dataframe['day'] < pub_date]
+            after_release = dataframe[dataframe['day'] >= pub_date]
+
+            # Añadir un punto cero en la fecha de lanzamiento a la línea de before_release
+            if not before_release.empty:
+                new_row = pd.DataFrame({'day': [pub_date], column: [0]})
+                before_release = pd.concat([before_release, new_row], ignore_index=True)
+
+            # Graficar la parte anterior al lanzamiento con transparencia
+            ax.plot(before_release['day'], before_release[column], color=color, alpha=0.3)
+
+            # Graficar la parte posterior al lanzamiento con opacidad completa
+            ax.plot(after_release['day'], after_release[column], color=color, label=f"{column}")
+
+            # Verificar si existen datos para pub_date en after_release
+            if not after_release.empty and pub_date in after_release['day'].values:
+                first_download_value = after_release.loc[after_release['day'] == pub_date, column].values[0]
+
+                # Añadir un marcador rojo para la fecha de lanzamiento
+                ax.scatter(pub_date, 0, color='red', zorder=5, s=100, edgecolor='black')
+
+                # Graficar una línea vertical sólida desde el eje x hasta el primer valor de descargas
+                ax.vlines(pub_date, ymin=0, ymax=first_download_value, colors=color, linestyles='solid', label=None)
+        else:
+            # Si no hay fecha de publicación, graficar normalmente
+            ax.plot(dataframe['day'], dataframe[column], color=color, label=column)
+
+    # Añadir "Primer Release" como leyenda explícita al final
+    ax.scatter([], [], color='red', s=100, edgecolor='black', label="Primer Release")  # Punto ficticio para la leyenda
+
+    # Personalización del gráfico
+    ax.set_title("Daily Downloads for Packages with CRAN Publication Dates", fontsize=16)
+    ax.set_xlabel("Date", fontsize=12)
+    ax.set_ylabel("Downloads", fontsize=12)
+
+    # Formato del eje x
+    num_days = (dataframe['day'].max() - dataframe['day'].min()).days
+    interval = 1 if num_days <= 15 else 2 if num_days <= 60 else 5
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    plt.xticks(rotation=90)
+
+    # Leyenda y ajustes finales
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(handles.pop(labels.index("Primer Release")))
+    labels.append(labels.pop(labels.index("Primer Release")))
+    ax.legend(handles, labels, title=None, fontsize=10, loc="lower center", bbox_to_anchor=(0.5, -0.4), ncol=4)
+
+    ax.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()  # Ajustar el diseño del gráfico
+    st.pyplot(fig)
+
+
+
+
+## PLOT 2
+
+def plot_cumulative_downloads(dataframe, color_palette):
+    # Crear una figura y ejes para el gráfico
+    fig, ax = plt.subplots(figsize=(16, 6))
+
+    # Convertir 'day' a datetime.date para graficar
+    dataframe['day'] = pd.to_datetime(dataframe['day']).dt.date
+
+    # Calcular la suma acumulativa para cada paquete
+    cumulative_data = dataframe.copy()
+    cumulative_data.iloc[:, 1:] = cumulative_data.iloc[:, 1:].cumsum()
+
+    # Establecer la paleta de colores "Set2"
+    colormap = plt.colormaps['Set2']
+    colors = colormap.colors[:len(cumulative_data.columns[1:])]
+
+    # Graficar descargas acumulativas para cada paquete
+    for column in cumulative_data.columns[1:]:  # Omitir la columna 'day'
+        ax.plot(cumulative_data['day'], cumulative_data[column], label=f"{column}", color=color_palette[column])
+
+    # Personalización del gráfico
+    ax.set_title("Cumulative Daily Downloads for Packages", fontsize=16)
+    ax.set_xlabel("Date", fontsize=12)
+    ax.set_ylabel("Cumulative Downloads", fontsize=12)
+
+    # Ajustar la leyenda como en Plot 1
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(
+        handles,
+        labels,
+        title=None,
+        fontsize=10,
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.4),
+        ncol=4,
+        frameon=True,  # Añadir borde
+        edgecolor="black",  # Borde negro
+    )
+    # Personalizar el cuadro de la leyenda
+    legend = ax.get_legend()
+    legend.get_frame().set_edgecolor("black")  # Borde negro
+    legend.get_frame().set_alpha(0.2)  # Transparencia del cuadro (0.0 a 1.0)
+
+    # Configuración adicional
+    ax.grid(True, linestyle='--', alpha=0.5)
+    
+    # Dynamic x-axis intervals and grid lines based on the data range
+    num_days = (dataframe['day'].max() - dataframe['day'].min()).days
+    if num_days <= 15:
+        interval = 1
+    elif num_days <= 60:
+        interval = 2
+    else:
+        interval = 5
+    # Format x-axis labels correctly
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    plt.xticks(rotation=90)
+
+
+    plt.xticks(rotation=90)
+    plt.tight_layout(rect=[0, 0, 1, 1])  # Ajustar diseño para espacio debajo del gráfico
+
+    # Renderizar el gráfico en Streamlit
+    st.pyplot(fig)
+
+
+
+
+
+
+#ENCABEZADO--------------------------------------------------------------------------------------------------------------
+
+# Encabezado simple
+#st.write("## TÍTULO")
+
+
+
+
+
+
+# BARRA DE BUSQUEDA -------------------------------------------------------------------------------------------------------
+
+# CSS para centrar y reducir el ancho del input
+st.markdown(
+    """
+    <style>
+    div[data-testid="stTextInput"] {
+        width: 50%; /* Ajusta el ancho aquí */
+        margin: 0 auto; /* Centra el input */
+    }
+    div[data-testid="stTextInput"] input {
+        text-align: center; /* Centra el texto dentro del cuadro */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+# Entrada de paquetes con estilo centrado y ancho reducido
+input_packages = st.text_input("", "vaccineff, sivirep, serofoi", placeholder="Buscar paquetes...")
+
+
+# Procesar paquetes
+packages = list(dict.fromkeys(pkg.strip() for pkg in input_packages.split(",") if pkg.strip()))
+
+
+#VERIFICAR QUE LOS PAQUETES ESTEN EN CRAN
+
+# Función para verificar si un paquete está en CRAN
+def is_package_in_cran(package_name):
+    try:
+        url = f"https://crandb.r-pkg.org/{package_name}/all"
+        response = requests.get(url, timeout=5)
+        return response.status_code == 200  # El paquete está en CRAN si la respuesta es 200
+    except requests.RequestException:
+        return False  # Retornar False si ocurre algún error
+
+# Filtrar paquetes que están en CRAN
+if packages:
+    cran_packages = [pkg for pkg in packages if is_package_in_cran(pkg)]
+    packages = cran_packages  # Actualizar la variable 'packages' con los paquetes válidos
+
+
+
+color_palette = generate_shared_color_palette(packages)
+
+
+
+
+# PARTE 1 ---------------------------------------------------------------------------------------------------------------
+
+# Panel superior: Fecha y gráficos
+with st.container():
+    col1, col2 = st.columns([1, 2])
+
+    # Columna izquierda: Fechas
+    with col1:
+        start_date = st.date_input("Fecha de Inicio", value=datetime(2024, 11, 13))
+        end_date = st.date_input("Fecha de Fin", value=datetime(2024, 12, 13))
+        st.write("Texto Dinámico")
+
+    # Columna derecha: Gráficos
+    with col2:
+        if packages and start_date and end_date:
+            # Recopilar metadatos
+            metadata = collect_metadata_for_packages(packages)
+
+            # Recopilar datos de descargas
+            all_data = collect_download_data(packages, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+
+            if not all_data.empty:
+                # Generar el primer gráfico dinámicamente
+                st.write("Gráfico de descargas diarias para los paquetes seleccionados:")
+                plot_daily_downloads_with_metadata(all_data, metadata, color_palette)
+
+                # Generar el segundo gráfico dinámicamente (cumulative downloads)
+                st.write("Gráfico acumulado de descargas diarias para los paquetes seleccionados:")
+                plot_cumulative_downloads(all_data, color_palette)
+            else:
+                st.write("No se encontraron datos para los paquetes seleccionados en el rango de fechas.")
+
+
+# Separador -------------------------------------
+st.markdown("---")
+
+
+
+
+
+
+
+
+
+
+# PARTE 2 -------------------------------------------------------------------------------------------------------------
+# Fondo del menú dinámico
+if packages:  # Verificar que haya paquetes válidos
+    with st.container():
+        cols = st.columns(len(packages))  # Generar columnas dinámicamente
+        selected_package = None
+        for col, package in zip(cols, packages):
+            if col.button(package, key=f"btn-{package}"):
+                selected_package = package
+
+    # Panel principal
+    if selected_package:
+        st.write(f"Paquete seleccionado: {selected_package}")

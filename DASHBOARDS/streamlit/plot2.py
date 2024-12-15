@@ -4,6 +4,7 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+import itertools
 
 # Function to fetch download data for a package from a specific date range
 def get_download_data(package_name, start_date, end_date):
@@ -151,12 +152,7 @@ def collect_download_data(packages, start_date, end_date):
 
 
 
-import itertools
-import matplotlib.pyplot as plt
-
-import itertools
-import matplotlib.pyplot as plt
-import pandas as pd
+ 
 
 def plot_daily_downloads_with_metadata(dataframe, metadata):
     plt.figure(figsize=(16, 6))  # Set the figure size
@@ -245,7 +241,7 @@ def plot_daily_downloads_with_metadata(dataframe, metadata):
 packages = [ "readepi", "ColOpenData", "sivirep", "vaccineff", "epichains"]
 
 # Define the date range
-start_date = "2024-08-15"
+start_date = "2024-05-15"
 end_date = "2024-12-02"
 metadata = collect_metadata_for_packages(packages)
 print(metadata.columns)

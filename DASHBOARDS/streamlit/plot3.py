@@ -4,6 +4,7 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+import itertools
 
 # Function to fetch download data for a package from a specific date range
 def get_download_data(package_name, start_date, end_date):
@@ -126,20 +127,27 @@ def collect_download_data(packages, start_date, end_date):
             combined_data = combined_data.drop_duplicates()  # Remove duplicates
             all_data[package] = combined_data.set_index('day')['downloads']
 
-    # Combine all data into a single DataFrame with each package as a column
+    #Combinar todos los datos en un solo DataFrame, cada paquete como una columna
+
     if all_data:
         final_data = pd.DataFrame(all_data)
         final_data.reset_index(inplace=True)  # Reset index to include 'day' as a column
         final_data.rename(columns={"index": "day"}, inplace=True)  # Ensure 'day' is named explicitly
-        # Filter by the specified date range
-        final_data['day'] = pd.to_datetime(final_data['day'])  # Ensure day is a datetime type
-        final_data = final_data[(final_data['day'] >= pd.to_datetime(start_date)) & 
-                                (final_data['day'] <= pd.to_datetime(end_date))]
+        
+        # Ensure 'day' is a datetime type
+        final_data['day'] = pd.to_datetime(final_data['day'])
+        
+        # Generate a full range of dates from start_date to end_date
+        full_date_range = pd.date_range(start=pd.to_datetime(start_date), end=pd.to_datetime(end_date))
+        
+        # Reindex the DataFrame to ensure all dates are included
+        final_data = final_data.set_index('day').reindex(full_date_range, fill_value=0).reset_index()
+        
+        # Rename the reindexed date column back to 'day'
+        final_data.rename(columns={"index": "day"}, inplace=True)
 
-        # Fill NaN values with 0
+        # Ensure no NaN values remain
         final_data.fillna(0, inplace=True)
-
-
 
         print("\n**Final Combined Data with Each Package as a Column:**")
         print(final_data)
@@ -151,8 +159,8 @@ def collect_download_data(packages, start_date, end_date):
 
 
 
-import itertools
-import matplotlib.pyplot as plt
+
+ 
 
 def plot_daily_downloads_with_metadata(dataframe, metadata):
     plt.figure(figsize=(16, 6))  # Set the figure size
@@ -224,14 +232,16 @@ def plot_daily_downloads_with_metadata(dataframe, metadata):
     plt.title("Daily Downloads for Packages with CRAN Publication Dates", fontsize=16)
     plt.xlabel("Date", fontsize=12)
     plt.ylabel("Downloads", fontsize=12)
-
-    # Place legend further below the plot
-    plt.legend(title=None, fontsize=10, loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=3, frameon=False)
+    
+    # Move legend outside of the plot
+    plt.legend(title=None, fontsize=10, loc="center left", bbox_to_anchor=(1, 0.5))  # Outside legend
 
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.xticks(rotation=45)
-    plt.tight_layout(rect=[0, 0, 1, 0.85])  # Adjust layout to make more space below the plot
+    plt.tight_layout(rect=[0, 0, 0.8, 1])  # Adjust layout to make space for the legend
     plt.show()
+
+
 
 
 
@@ -239,7 +249,7 @@ def plot_daily_downloads_with_metadata(dataframe, metadata):
 packages = [ "readepi", "ColOpenData", "sivirep", "vaccineff", "epichains"]
 
 # Define the date range
-start_date = "2024-08-15"
+start_date = "2024-05-15"
 end_date = "2024-12-02"
 metadata = collect_metadata_for_packages(packages)
 print(metadata.columns)
@@ -247,3 +257,4 @@ print(metadata.columns)
 df = collect_download_data(packages, start_date, end_date)
 # Assuming the final DataFrame from collect_download_data is stored in `df`
 plot_daily_downloads_with_metadata(df, metadata)
+
