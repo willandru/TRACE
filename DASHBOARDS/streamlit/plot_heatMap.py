@@ -1,3 +1,8 @@
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
 import requests
 import pandas as pd
 
@@ -239,6 +244,142 @@ def plot_daily_downloads_with_metadata(dataframe, metadata):
 
 
 
+##CUMULATIVE DAILYDOWNLOADS PLOT ------------------------------------------------------
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+def plot_cumulative_downloads(dataframe):
+    plt.figure(figsize=(16, 6))  # Set the figure size
+
+    # Convert 'day' to datetime.date for plotting
+    dataframe['day'] = pd.to_datetime(dataframe['day']).dt.date
+
+    # Calculate cumulative sum for each package
+    cumulative_data = dataframe.copy()
+    cumulative_data.iloc[:, 1:] = cumulative_data.iloc[:, 1:].cumsum()
+
+    # Set the color palette to "Set2"
+    colormap = plt.colormaps['Set2']  # Updated to use the new API
+    colors = colormap.colors[:len(cumulative_data.columns[1:])]
+
+    # Plot cumulative downloads for each package
+    for idx, column in enumerate(cumulative_data.columns[1:]):  # Skip the 'day' column
+        plt.plot(cumulative_data['day'], cumulative_data[column], label=f"{column}", color=colors[idx])
+
+    # Customization
+    plt.title("Cumulative Daily Downloads for Packages", fontsize=16)
+    plt.xlabel("Date", fontsize=12)
+    plt.ylabel("Cumulative Downloads", fontsize=12)
+
+    # Place legend below the plot in horizontal layout
+    plt.legend(title=None, fontsize=10, loc="upper center", bbox_to_anchor=(0.5, -0.4), ncol=4, frameon=False)
+
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.xticks(rotation=45)
+    plt.tight_layout(rect=[0, 0, 1, 0.8])  # Adjust layout to make space below the plot
+    plt.show()
+
+
+
+## HEAT MAP PLOT ------------------------------------------------------
+
+
+from datetime import datetime, timedelta
+import pandas as pd
+import requests
+
+def get_download_data_last_30_days(package_name):
+    """
+    Fetch download data for the last 30 days for a specific package.
+    """
+    # Calcular las fechas de los últimos 30 días
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=30)
+
+    print(f"Fetching download data for package '{package_name}' from {start_date} to {end_date}")
+
+    # Intentar obtener datos para el rango específico
+    data = get_download_data(package_name, start_date, end_date)
+
+    if data is not None and not data.empty:
+        print("Download data fetched successfully for the specified date range.")
+        return data
+    else:
+        # Si no hay datos en el rango, intentar con el endpoint 'last-month'
+        print("No data for the specified date range. Using last-month endpoint.")
+        data_last_month = get_download_data_last_month(package_name)
+        if data_last_month is not None and not data_last_month.empty:
+            # Filtrar únicamente los últimos 30 días en caso de datos adicionales
+            data_last_month['day'] = pd.to_datetime(data_last_month['day']).dt.date
+            data_filtered = data_last_month[data_last_month['day'] > start_date]
+            print("Download data fetched successfully using last-month endpoint.")
+            return data_filtered
+        else:
+            print(f"No data found for package '{package_name}' in the last-month endpoint either.")
+            return pd.DataFrame(columns=['day', 'downloads'])
+
+
+
+
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+def plot_last_30_days_calendar_heatmap(dataframe):
+    """
+    Create a calendar-style heatmap for the downloads of a single package for the last 30 days.
+    """
+    # Asegurarse de que los datos contengan las columnas necesarias
+    if 'day' not in dataframe.columns or 'downloads' not in dataframe.columns:
+        raise ValueError("DataFrame must contain 'day' and 'downloads' columns.")
+    
+    # Preparar los datos
+    dataframe['day'] = pd.to_datetime(dataframe['day'])
+    dataframe['weekday'] = dataframe['day'].dt.weekday  # Lunes = 0, Domingo = 6
+    dataframe['week'] = dataframe['day'].dt.isocalendar().week  # Número de la semana
+
+    # Ajustar la semana base para alinear en la matriz
+    dataframe['week'] -= dataframe['week'].min()
+
+    # Crear la matriz tipo calendario
+    calendar_matrix = dataframe.pivot(index='week', columns='weekday', values='downloads')
+
+    # Completar los valores faltantes con 0
+    calendar_matrix = calendar_matrix.replace(np.nan, 0)
+
+    # Plotear el heatmap
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(calendar_matrix, cmap="YlGnBu", annot=True, fmt=".0f", linewidths=0.5, 
+                cbar_kws={'label': 'Downloads'}, square=True)
+
+    # Configurar etiquetas de los ejes
+    plt.xticks(ticks=np.arange(7) + 0.5, labels=['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], fontsize=10)
+    plt.yticks(ticks=np.arange(len(calendar_matrix.index)) + 0.5, 
+               labels=[f"Week {int(week)+1}" for week in calendar_matrix.index], fontsize=10, rotation=0)
+
+    # Configuración del título
+    plt.title("Downloads (Last 30 Days)", fontsize=14)
+    plt.xlabel("Day of Week", fontsize=12)
+    plt.ylabel("Week", fontsize=12)
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # List of packages to query
@@ -247,10 +388,16 @@ packages = [ "readepi", "ColOpenData", "sivirep", "vaccineff", "epichains"]
 # Define the date range
 start_date = "2024-08-15"
 end_date = "2024-12-02"
-metadata = collect_metadata_for_packages(packages)
-print(metadata.columns)
+#metadata = collect_metadata_for_packages(packages)
+#print(metadata.columns)
 
-df = collect_download_data(packages, start_date, end_date)
+#df = collect_download_data(packages, start_date, end_date)
 # Assuming the final DataFrame from collect_download_data is stored in `df`
-plot_daily_downloads_with_metadata(df, metadata)
+#plot_daily_downloads_with_metadata(df, metadata)
+#plot_cumulative_downloads(df)
 
+
+df2 = get_download_data_last_30_days("vaccineff")
+print(df2)
+
+plot_last_30_days_calendar_heatmap(df2)

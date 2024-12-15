@@ -154,10 +154,6 @@ def collect_download_data(packages, start_date, end_date):
 import itertools
 import matplotlib.pyplot as plt
 
-import itertools
-import matplotlib.pyplot as plt
-import pandas as pd
-
 def plot_daily_downloads_with_metadata(dataframe, metadata):
     plt.figure(figsize=(16, 6))  # Set the figure size
 
@@ -228,16 +224,14 @@ def plot_daily_downloads_with_metadata(dataframe, metadata):
     plt.title("Daily Downloads for Packages with CRAN Publication Dates", fontsize=16)
     plt.xlabel("Date", fontsize=12)
     plt.ylabel("Downloads", fontsize=12)
-    
-    # Move legend outside of the plot
-    plt.legend(title=None, fontsize=10, loc="center left", bbox_to_anchor=(1, 0.5))  # Outside legend
+
+    # Place legend further below the plot
+    plt.legend(title=None, fontsize=10, loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=3, frameon=False)
 
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.xticks(rotation=45)
-    plt.tight_layout(rect=[0, 0, 0.8, 1])  # Adjust layout to make space for the legend
+    plt.tight_layout(rect=[0, 0, 1, 0.85])  # Adjust layout to make more space below the plot
     plt.show()
-
-
 
 
 
@@ -253,4 +247,3 @@ print(metadata.columns)
 df = collect_download_data(packages, start_date, end_date)
 # Assuming the final DataFrame from collect_download_data is stored in `df`
 plot_daily_downloads_with_metadata(df, metadata)
-

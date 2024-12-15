@@ -148,10 +148,10 @@ def collect_download_data(packages, start_date, end_date):
 
 
 # List of packages to query
-packages = [ "readepi", "ColOpenData", "sivirep", "vaccineff"]
+packages = [ "readepi", "ColOpenData", "sivirep", "vaccineff", "epichains"]
 
 # Define the date range
-start_date = "2024-11-15"
+start_date = "2024-08-15"
 end_date = "2024-12-02"
 
 metadata_all = collect_metadata_for_packages(packages)

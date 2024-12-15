@@ -239,6 +239,47 @@ def plot_daily_downloads_with_metadata(dataframe, metadata):
 
 
 
+import matplotlib.pyplot as plt
+import pandas as pd
+from matplotlib import cm
+
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+def plot_cumulative_downloads(dataframe):
+    plt.figure(figsize=(16, 6))  # Set the figure size
+
+    # Convert 'day' to datetime.date for plotting
+    dataframe['day'] = pd.to_datetime(dataframe['day']).dt.date
+
+    # Calculate cumulative sum for each package
+    cumulative_data = dataframe.copy()
+    cumulative_data.iloc[:, 1:] = cumulative_data.iloc[:, 1:].cumsum()
+
+    # Set the color palette to "Set2"
+    colormap = plt.colormaps['Set2']  # Updated to use the new API
+    colors = colormap.colors[:len(cumulative_data.columns[1:])]
+
+    # Plot cumulative downloads for each package
+    for idx, column in enumerate(cumulative_data.columns[1:]):  # Skip the 'day' column
+        plt.plot(cumulative_data['day'], cumulative_data[column], label=f"{column}", color=colors[idx])
+
+    # Customization
+    plt.title("Cumulative Daily Downloads for Packages", fontsize=16)
+    plt.xlabel("Date", fontsize=12)
+    plt.ylabel("Cumulative Downloads", fontsize=12)
+
+    # Place legend below the plot in horizontal layout
+    plt.legend(title=None, fontsize=10, loc="upper center", bbox_to_anchor=(0.5, -0.4), ncol=4, frameon=False)
+
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.xticks(rotation=45)
+    plt.tight_layout(rect=[0, 0, 1, 0.8])  # Adjust layout to make space below the plot
+    plt.show()
+
+
+
 
 
 # List of packages to query
@@ -252,5 +293,6 @@ print(metadata.columns)
 
 df = collect_download_data(packages, start_date, end_date)
 # Assuming the final DataFrame from collect_download_data is stored in `df`
-plot_daily_downloads_with_metadata(df, metadata)
+#plot_daily_downloads_with_metadata(df, metadata)
 
+plot_cumulative_downloads(df)
