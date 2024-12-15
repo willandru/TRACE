@@ -5,7 +5,7 @@ account: willandru
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 13594170
-bundleId: 9521059
+bundleId: 9521367
 url: https://willandru.shinyapps.io/EpiverseTRACE-Packages/
 version: 1
 asMultiple: FALSE

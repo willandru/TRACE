@@ -51,7 +51,7 @@ ui <- dashboardPage(
                   box(
                     title = "Seleccionar Fechas",
                     width = 12,
-                    dateInput("start_date", "Fecha de inicio:", value = Sys.Date() - 30, max = Sys.Date()),
+                    dateInput("start_date", "Fecha de inicio:", value = "2024-11-06", max = Sys.Date()),
                     dateInput("end_date", "Fecha de fin:", value = Sys.Date(), max = Sys.Date())
                   ),
                   box(
@@ -220,7 +220,7 @@ server <- function(input, output, session) {
           data = plot_data[[pkg]]$before,
           aes(x = date, y = count, color = package),
           linewidth = 1.2,
-          alpha = 0 # Transparente
+          alpha = 0.15 # Transparente
         )
       }
       
