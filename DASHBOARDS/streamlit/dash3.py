@@ -277,8 +277,8 @@ def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
 
     ax.set_xlabel("Fecha", fontsize=20, fontweight='bold', labelpad=25)  # Ajusta el valor de labelpad
 
-    ax.set_ylabel("Descargas", fontsize=20, fontweight='bold')
-    ax.yaxis.set_label_coords(-0.03, 0.5)
+    ax.set_ylabel("Descargas", fontsize=20, fontweight='bold', labelpad=20)
+    
 
     # Formato del eje x
     num_days = (dataframe['day'].max() - dataframe['day'].min()).days
@@ -393,6 +393,65 @@ def plot_cumulative_downloads(dataframe, color_palette):
 
 
 
+
+
+
+
+
+
+
+### PLOT 3
+
+
+
+def plot_growth_rate(dataframe, metadata, color_palette):
+    fig, ax = plt.subplots(figsize=(16, 6))  # Crear la figura y los ejes
+
+    # Asegurarse de que metadata contiene las columnas requeridas
+    if 'package' not in metadata.columns or 'cran_release_date' not in metadata.columns:
+        raise ValueError("Metadata DataFrame must contain 'package' and 'cran_release_date' columns.")
+
+    # Convertir columnas a datetime
+    dataframe['day'] = pd.to_datetime(dataframe['day']).dt.date
+    metadata['cran_release_date'] = pd.to_datetime(metadata['cran_release_date']).dt.date
+
+    # Calcular la tasa de crecimiento para cada paquete
+    for column in dataframe.columns[1:]:  # Omitir la columna 'day'
+        # Obtener la fecha de lanzamiento
+        pub_date = metadata.loc[metadata['package'] == column, 'cran_release_date']
+        if pub_date.empty:
+            continue  # Saltar si no hay fecha de publicación
+        pub_date = pub_date.values[0]
+
+        # Calcular días desde la fecha de lanzamiento
+
+        # Asegurar que 'day' es de tipo datetime.date
+        dataframe['day'] = pd.to_datetime(dataframe['day']).dt.date  
+        # Calcular días en CRAN (resta entre fechas y extraer días)
+        dataframe['days_in_cran'] = (dataframe['day'] - pub_date).apply(lambda x: x.days)
+
+        dataframe['growth_rate'] = dataframe[column] / dataframe['days_in_cran'].replace(0, 1)  # Evitar división por cero
+
+        # Filtrar para días válidos (>= 0)
+        valid_data = dataframe[dataframe['days_in_cran'] >= 0]
+
+        # Graficar la tasa de crecimiento
+        color = color_palette.get(column, "black")
+        ax.plot(valid_data['day'], valid_data['growth_rate'], label=column, color=color)
+
+    # Personalización del gráfico
+    ax.set_title("Tasa de Crecimiento de Descargas de Paquetes en CRAN", fontsize=20)
+    ax.set_xlabel("Fecha", fontsize=16, labelpad=10)
+    ax.set_ylabel("Tasa de Crecimiento (Descargas / Días en CRAN)", fontsize=16, labelpad=10)
+    plt.xticks(rotation=90, fontsize=14)
+    plt.yticks(fontsize=14)
+    ax.legend(fontsize=12, loc="upper left", bbox_to_anchor=(1, 1))
+
+    ax.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    st.pyplot(fig)
+
+
 #### FIN DECLARACION DE FUNCIONES**********************************************************************************
 ### **************************************************************************************************
 ### **************************************************************************************************
@@ -429,7 +488,40 @@ st.set_page_config(
 # Encabezado simple
 #st.write("## TÍTULO")
 
+# CSS para el encabezado con franja de color
+st.markdown("""
+    <style>
+    .header {
+        background-color: #21303C; /* Cambia el color de fondo aquí */
+        padding: 20px; /* Espaciado interno */
+        border-radius: 8px; /* Bordes redondeados opcionales */
+        display: flex; /* Para alinear texto e imágenes en la misma fila */
+        align-items: center; /* Centrar contenido verticalmente */
+        justify-content: space-between; /* Distribuir contenido horizontalmente */
+        color: white; /* Color del texto */
+    }
+    .header img {
+        height: 50px; /* Altura de las imágenes */
+        margin-right: 15px; /* Espaciado entre imágenes y texto */
+    }
+    .header h1 {
+        font-size: 24px; /* Tamaño del texto */
+        margin: 0; /* Elimina el margen por defecto */
+    }
+    </style>
+""", unsafe_allow_html=True)
 
+# HTML para el encabezado
+st.markdown("""
+    <div class="header">
+        <img src="https://epiverse-trace.github.io/blueprints/logo_white.svg" alt="Logo izquierdo">
+        <h1>Mi Título Personalizado</h1>
+         
+    </div>
+""", unsafe_allow_html=True)
+
+
+#####  FIN ENCABEZADO ----------------------------------------------------------------------------------------
 
 
 
@@ -449,24 +541,60 @@ st.set_page_config(
 # BARRA DE BUSQUEDA -------------------------------------------------------------------------------------------------------
 
 # CSS para centrar y reducir el ancho del input
-
 st.markdown(
     """
     <style>
+    /* Contenedor principal del input */
     div[data-testid="stTextInput"] {
-        font-size: 18px; /* Cambiar tamaño de fuente */
-        width: 50%; /* Aumentar el ancho */
-        margin: 0 auto; /* Centrar */
+        width: 50%; /* Ancho del input */
+        margin: 20px auto; /* Centrado con margen superior/inferior */
     }
+    
+    /* Input real */
     div[data-testid="stTextInput"] input {
+        font-size: 16px; /* Tamaño de letra */
         padding: 10px; /* Espaciado interno */
-        text-align: center; /* Centra el texto dentro del cuadro */
+        border: 2px solid #21303C; /* Borde */
+        border-radius: 8px; /* Bordes redondeados */
+        background-color: #21303C; /* Fondo oscuro */
+        color: #F7F7F7; /* Color del texto */
+        caret-color: #87BD28; /* Color del cursor */
+        text-align: center; /* Centrar el texto */
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1); /* Sombra ligera */
+    }
+
+    /* Efecto cuando el input está enfocado */
+    div[data-testid="stTextInput"] input:focus {
+        outline: none; /* Quitar borde azul predeterminado */
+        border-color: #87BD28; /* Color del borde enfocado */
+        box-shadow: 0px 0px 8px rgba(135, 189, 40, 0.5); /* Sombra verde */
+    }
+
+    /* Sugerencias de autocompletado */
+    input:-webkit-autofill, 
+    input:-webkit-autofill:hover, 
+    input:-webkit-autofill:focus, 
+    input:-webkit-autofill:active {
+        -webkit-box-shadow: 0 0 0px 1000px #35373A inset !important; /* Fondo oscuro */
+        -webkit-text-fill-color: #F7F7F7 !important; /* Color del texto */
+        caret-color: #87BD28 !important; /* Cursor */
+    }
+
+    /* Estilo de la lista de sugerencias */
+    input::-webkit-input-placeholder { /* Placeholder */
+        color: #C0C0C0; /* Color gris claro */
+    }
+
+    /* Dropdown suggestions on input */
+    datalist option {
+        background: #3B3D3F; /* Fondo sugerencias */
+        color: #F7F7F7; /* Color texto */
+        padding: 5px;        
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
-
 
 
 
@@ -506,14 +634,14 @@ else:
 
 
 
-
+print("Hola mundo")
 
 
 # CSS para modificar únicamente el ancho de los widgets de fecha
 st.markdown("""
     <style>
     div[data-testid="stDateInput"] {
-        width: 200px !important; /* Define el ancho deseado aquí */
+        width: 250px !important; /* Define el ancho deseado aquí */
     }
     </style>
     """, unsafe_allow_html=True)
@@ -522,6 +650,9 @@ st.markdown("""
 
 # Panel superior: Fecha y gráficos
 with st.container():
+    ## VERTICAL SPACE
+    st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)  
+
     col1, col2 = st.columns([1, 2])
 
     # Columna izquierda: Fechas
@@ -532,10 +663,9 @@ with st.container():
         end_date = st.date_input("Fecha de Fin", value=datetime(2024, 12, 13))
 
 
-
-        st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)  ## vertical space
+        ## VERTICAL SPACE
+        st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)  
  
-
 
         if packages and start_date and end_date:
             # Recopilar metadata
@@ -547,6 +677,9 @@ with st.container():
             st.markdown("<h3 style=' font-size:24px; font-weight: bold;'>Versiones y Fechas en CRAN</h3>",unsafe_allow_html=True)
 
             st.dataframe(metadata if metadata is not None else "No hay metadata.")
+
+            ## VERTICAL SPACE
+        st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)
 
     # Columna derecha: Gráficos
     with col2:
@@ -563,6 +696,10 @@ with st.container():
                 # Generar el segundo gráfico
                 st.write("Gráfico acumulado de descargas diarias para los paquetes seleccionados:")
                 plot_cumulative_downloads(all_data, color_palette)
+
+                st.write("Gráfico de Tasa de Crecimiento para los paquetes seleccionados:")
+                plot_growth_rate(all_data, metadata, color_palette)
+
             else:
                 st.write("No se encontraron datos para los paquetes seleccionados en el rango de fechas.")
 
