@@ -72,6 +72,11 @@ ui <- dashboardPage(
                     title = "Descargas Acumuladas",
                     width = 12,
                     plotOutput("cumulative_plot", height = "300px") %>% withSpinner(color = "#0dc5c1") # Indicador de carga
+                  ),
+                  box(
+                    title = "Tasa de Crecimiento",
+                    width = 12,
+                    plotOutput("growth_rate_plot", height = "300px") %>% withSpinner(color = "#0dc5c1") # Indicador de carga
                   )
                 )
               )
@@ -220,7 +225,7 @@ server <- function(input, output, session) {
           data = plot_data[[pkg]]$before,
           aes(x = date, y = count, color = package),
           linewidth = 1.2,
-          alpha = 0.15 # Transparente
+          alpha = 0 # Transparente
         )
       }
       
@@ -248,7 +253,7 @@ server <- function(input, output, session) {
         data = vertical_data,
         aes(x = date, xend = date, y = start_count, yend = end_count, color = package),
         linewidth = 1.2, # Línea sólida
-        linetype = "solid" # Tipo de línea sólida
+        linetype = "dashed" # Tipo de línea sólida
       )
     }
     
@@ -273,75 +278,190 @@ server <- function(input, output, session) {
   
   
   
-  
+  ## PLOT 2 -----------------------------------------------------------------------
   
   output$cumulative_plot <- renderPlot({
     data <- download_data() # Datos dinámicos basados en fechas
-    releases <- release_dates() # Fechas de lanzamientos de los paquetes
+    releases <- release_dates() # Fechas de lanzamientos
     req(data, releases, nrow(data) > 0)
     
-    paquetes <- unique(data$package) # Paquetes disponibles en los datos
+    paquetes <- unique(data$package) # Paquetes seleccionados
     
     # Ajustar colores para 1 o 2 paquetes
     colores <- if (length(paquetes) < 3) {
-        c("#66C2A5", "#FC8D62", "#8DA0CB")[1:length(paquetes)] # Paleta fija
+      c("#66C2A5", "#FC8D62", "#8DA0CB")[1:length(paquetes)]
     } else {
-        brewer.pal(min(length(paquetes), 8), "Set2")
+      brewer.pal(min(length(paquetes), 8), "Set2")
     }
     
     # Filtrar datos según las fechas del usuario
     data <- data %>%
-        filter(date >= input$start_date & date <= input$end_date)
+      filter(date >= input$start_date & date <= input$end_date)
     
-    # Manejo de paquetes sin datos en el rango
+    # Manejar paquetes sin datos en el rango
     paquetes_sin_datos <- setdiff(paquetes, unique(data$package))
     if (length(paquetes_sin_datos) > 0) {
-        # Crear líneas con y = 0 para los paquetes sin datos
-        data_sin_datos <- do.call(rbind, lapply(paquetes_sin_datos, function(pkg) {
-            data.frame(
-                date = seq(input$start_date, input$end_date, by = "day"),
-                cumulative_count = 0,
-                package = pkg
-            )
-        }))
+      data_sin_datos <- do.call(rbind, lapply(paquetes_sin_datos, function(pkg) {
+        data.frame(
+          date = seq(input$start_date, input$end_date, by = "day"),
+          cumulative_count = 0,
+          package = pkg
+        )
+      }))
     } else {
-        data_sin_datos <- NULL
+      data_sin_datos <- NULL
     }
     
     # Calcular descargas acumuladas solo para paquetes con datos
     cumulative_data <- data %>%
-        group_by(package) %>%
-        arrange(date) %>%
-        mutate(cumulative_count = cumsum(count)) %>%
-        ungroup()
+      group_by(package) %>%
+      arrange(date) %>%
+      mutate(cumulative_count = cumsum(count)) %>%
+      ungroup()
     
     # Combinar datos acumulados con datos de paquetes faltantes
     cumulative_data <- bind_rows(cumulative_data, data_sin_datos)
     
-    # Filtrar lanzamientos válidos según el rango de fechas del input
-    valid_releases <- releases %>%
-        filter(!is.na(date) & date >= input$start_date & date <= input$end_date)
+    # Dividir datos en antes y después del primer release
+    plot_data <- list()
+    for (pkg in paquetes) {
+      pkg_data <- cumulative_data %>% filter(package == pkg)
+      pkg_release <- releases %>% filter(package == pkg) %>% arrange(date) %>% slice(1) # Primer release
+      release_date <- pkg_release$date[1]
+      
+      if (is.na(release_date)) next # Saltar si no hay release
+      
+      if (input$start_date < release_date) {
+        before_release <- pkg_data %>% filter(date < release_date)
+        after_release <- pkg_data %>% filter(date >= release_date)
+        
+        # Añadir punto de conexión
+        connection_point <- data.frame(date = release_date, cumulative_count = 0, package = pkg)
+        before_release <- bind_rows(before_release, connection_point)
+        
+        plot_data[[pkg]]$before <- before_release
+        plot_data[[pkg]]$after <- after_release
+      } else {
+        plot_data[[pkg]]$single <- pkg_data
+      }
+    }
     
     # Crear el gráfico
-    ggplot(cumulative_data, aes(x = date, y = cumulative_count, color = package)) +
-        geom_line(linewidth = 1.2) + # Líneas normales
-        geom_point(
-            data = valid_releases,
-            aes(x = date, y = 0, color = package), # Puntos sólidos para lanzamientos
-            size = 3,
-            shape = 21,
-            fill = "white"
-        ) +
-        labs(
-            title = "Descargas Acumuladas",
-            x = "Fecha",
-            y = "Descargas Acumuladas",
-            color = "Paquete"
-        ) +
-        scale_color_manual(values = setNames(colores, paquetes)) +
-        theme_minimal()
-})
-
+    p <- ggplot()
+    for (pkg in names(plot_data)) {
+      if (!is.null(plot_data[[pkg]]$before) && nrow(plot_data[[pkg]]$before) > 1) {
+        p <- p + geom_line(
+          data = plot_data[[pkg]]$before,
+          aes(x = date, y = cumulative_count, color = package),
+          linewidth = 1.2,
+          alpha = 0
+        )
+      }
+      
+      if (!is.null(plot_data[[pkg]]$after) && nrow(plot_data[[pkg]]$after) > 1) {
+        p <- p + geom_line(
+          data = plot_data[[pkg]]$after,
+          aes(x = date, y = cumulative_count, color = package),
+          linewidth = 1.2
+        )
+      }
+    }
+    
+    # Dibujar los puntos del release
+    valid_releases <- releases %>%
+      filter(!is.na(date) & date >= input$start_date & date <= input$end_date)
+    
+    p <- p + geom_point(
+      data = valid_releases,
+      aes(x = date, y = 0, color = package),
+      size = 3,
+      shape = 21,
+      fill = "white"
+    )
+    
+    # Finalizar el gráfico
+    p + labs(
+      title = "Descargas Acumuladas",
+      x = "Fecha",
+      y = "Descargas Acumuladas",
+      color = "Paquete"
+    ) +
+      scale_color_manual(values = setNames(colores, paquetes)) +
+      theme_minimal()
+  })
+  
+  
+  ##PLOT 3-----------------------------------------------------------------------
+  
+  
+  output$growth_rate_plot <- renderPlot({
+    # Descargar datos y fechas de releases
+    data <- download_data()
+    releases <- release_dates()
+    req(data, releases, nrow(data) > 0)
+    
+    paquetes <- unique(data$package) # Paquetes seleccionados
+    
+    # Filtrar fechas según input
+    start_date <- input$start_date
+    end_date <- input$end_date
+    
+    # Unir datos con la fecha de lanzamiento
+    data <- data %>%
+      left_join(releases, by = "package") %>%
+      filter(!is.na(date.x) & !is.na(date.y)) %>% # Validar fechas
+      mutate(
+        days_in_cran = as.numeric(date.x - date.y), # Días desde el lanzamiento
+        growth_rate = ifelse(days_in_cran >= 0, count / (days_in_cran + 1), NA) # Evitar división por 0
+      ) %>%
+      filter(date.x >= start_date & date.x <= end_date) # Filtrar por rango input
+    
+    # Filtrar fechas de primer release dentro del rango
+    valid_releases <- releases %>%
+      filter(date >= start_date & date <= end_date)
+    
+    # Datos para las líneas verticales (solo lanzamientos dentro del rango)
+    vertical_segments <- data %>%
+      filter(date.x == date.y & date.x >= start_date & date.x <= end_date) %>%
+      group_by(package) %>%
+      summarize(
+        date = date.x[1],
+        growth_rate = growth_rate[1]
+      )
+    
+    # Manejo de colores
+    colores <- if (length(paquetes) < 3) {
+      c("#66C2A5", "#FC8D62", "#8DA0CB")[1:length(paquetes)]
+    } else {
+      brewer.pal(min(length(paquetes), 8), "Set2")
+    }
+    
+    # Crear el gráfico
+    ggplot(data, aes(x = date.x, y = growth_rate, color = package)) +
+      geom_line(linewidth = 1.2) + # Línea de tasa de crecimiento
+      geom_point( # Punto sólido en la fecha de primer release
+        data = vertical_segments,
+        aes(x = date, y = 0, color = package),
+        size = 3,
+        shape = 21,
+        fill = "white"
+      ) +
+      geom_segment( # Línea vertical sólida desde y = 0 hasta la tasa de crecimiento
+        data = vertical_segments,
+        aes(x = date, xend = date, y = 0, yend = growth_rate, color = package),
+        linewidth = 1,
+        linetype = "dashed",
+      ) +
+      labs(
+        title = "Tasa de Crecimiento",
+        x = "Fecha",
+        y = "Tasa de Crecimiento (descargas/días en CRAN)",
+        color = "Paquete"
+      ) +
+      scale_color_manual(values = setNames(colores, paquetes)) +
+      theme_minimal()
+  })
+  
   
   
   
