@@ -62,19 +62,19 @@ def get_package_metadata(package_name):
             return pd.DataFrame({
                 "package": [package_name] * len(versions), 
                 "version": versions, 
-                "first_cran_date": dates
+                "cran_release_date": dates
             })
         else:
             return pd.DataFrame({
                 "package": [package_name], 
                 "version": [None], 
-                "first_cran_date": [None]
+                "cran_release_date": [None]
             })
     except requests.exceptions.RequestException:
         return pd.DataFrame({
             "package": [package_name], 
             "version": [None], 
-            "first_cran_date": [None]
+            "cran_release_date": [None]
         })
 
 
@@ -227,23 +227,23 @@ def get_first_colors(cmap_name, num_colors=10):
 ## PLOT 1
 
 def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
-    fig, ax = plt.subplots(figsize=(16, 6))  # Crear la figura y los ejes
+    fig, ax = plt.subplots(figsize=(20, 10))  # Crear la figura y los ejes
     #fig, ax = plt.subplots(figsize=(20, 10))  # Ancho=20, Alto=10
 
     # Asegurarse de que metadata contiene las columnas requeridas
-    if 'package' not in metadata.columns or 'first_cran_date' not in metadata.columns:
-        raise ValueError("Metadata DataFrame must contain 'package' and 'first_cran_date' columns.")
+    if 'package' not in metadata.columns or 'cran_release_date' not in metadata.columns:
+        raise ValueError("Metadata DataFrame must contain 'package' and 'cran_release_date' columns.")
 
-    # Convertir 'day' y 'first_cran_date' a formato datetime.date para comparación
+    # Convertir 'day' y 'cran_release_date' a formato datetime.date para comparación
     dataframe['day'] = pd.to_datetime(dataframe['day']).dt.date
-    metadata['first_cran_date'] = pd.to_datetime(metadata['first_cran_date']).dt.date
+    metadata['cran_release_date'] = pd.to_datetime(metadata['cran_release_date']).dt.date
 
     # Graficar descargas diarias para cada paquete
     for column in dataframe.columns[1:]:  # Omitir la columna 'day'
         color = color_palette.get(column, "black")  # Mapear color basado en el paquete
 
         # Buscar la fecha de publicación para el paquete en metadata
-        publication_date = metadata.loc[metadata['package'] == column, 'first_cran_date']
+        publication_date = metadata.loc[metadata['package'] == column, 'cran_release_date']
         pub_date = publication_date.values[0] if not publication_date.empty else None
 
         if pub_date:
@@ -257,7 +257,7 @@ def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
                 before_release = pd.concat([before_release, new_row], ignore_index=True)
 
             # Graficar partes antes y después del lanzamiento
-            ax.plot(before_release['day'], before_release[column], color=color, alpha=0.3)
+            ax.plot(before_release['day'], before_release[column], color=color, alpha=0)
             ax.plot(after_release['day'], after_release[column], color=color, label=f"{column}")
 
             # Marcar fecha de lanzamiento
@@ -273,9 +273,12 @@ def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
     ax.scatter([], [], color='red', s=100, edgecolor='black', label="Primer Release")
 
     # Personalización del gráfico
-    ax.set_title("Daily Downloads for Packages with CRAN Publication Dates", fontsize=20)
-    ax.set_xlabel("Date", fontsize=16)
-    ax.set_ylabel("Downloads", fontsize=16)
+    ax.set_title("Descargas Diarias de Paquetes en CRAN", fontsize=26, fontweight='bold', pad=20)
+
+    ax.set_xlabel("Fecha", fontsize=20, fontweight='bold', labelpad=25)  # Ajusta el valor de labelpad
+
+    ax.set_ylabel("Descargas", fontsize=20, fontweight='bold')
+    ax.yaxis.set_label_coords(-0.03, 0.5)
 
     # Formato del eje x
     num_days = (dataframe['day'].max() - dataframe['day'].min()).days
@@ -283,7 +286,9 @@ def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
     ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
-    plt.xticks(rotation=90)
+    #plt.xticks(rotation=90)
+    plt.xticks(rotation=90, fontsize=18)
+    plt.yticks(fontsize=18)
 
     # Leyenda y ajustes finales
     handles, labels = ax.get_legend_handles_labels()
@@ -291,7 +296,7 @@ def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
         # Reorganizar "Primer Release" al final
         handles.append(handles.pop(labels.index("Primer Release")))
         labels.append(labels.pop(labels.index("Primer Release")))
-    ax.legend(handles, labels, title=None, fontsize=10, loc="lower center", bbox_to_anchor=(0.5, -0.4), ncol=4)
+    ax.legend(handles, labels, title=None, fontsize=19, loc="lower center", bbox_to_anchor=(0.5, -0.4), ncol=4)
 
     ax.grid(True, linestyle='--', alpha=0.6)
     plt.tight_layout()  # Ajustar el diseño del gráfico 
@@ -462,9 +467,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown("<h1 style='font-size:32px;'>Texto Grande</h1>", unsafe_allow_html=True)
-st.markdown("<p style='font-size:20px;'>Texto más pequeño</p>", unsafe_allow_html=True)
-
 
 
 
@@ -507,7 +509,14 @@ else:
 
 
 
-
+# CSS para modificar únicamente el ancho de los widgets de fecha
+st.markdown("""
+    <style>
+    div[data-testid="stDateInput"] {
+        width: 200px !important; /* Define el ancho deseado aquí */
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # PART 1 ---------------------------------------------------------------------------------------------------------------
 
@@ -518,16 +527,25 @@ with st.container():
     # Columna izquierda: Fechas
     with col1:
         # Selección de fechas
+        st.markdown("<h3 style=' font-size:24px; font-weight: bold;'>Selección de fechas</h3>",unsafe_allow_html=True)
         start_date = st.date_input("Fecha de Inicio", value=datetime(2024, 11, 13))
         end_date = st.date_input("Fecha de Fin", value=datetime(2024, 12, 13))
-        st.write("Texto Dinámico")
+
+
+
+        st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)  ## vertical space
+ 
+
 
         if packages and start_date and end_date:
             # Recopilar metadata
             metadata = collect_metadata_for_packages(packages)
 
             # Mostrar metadata debajo de las fechas
-            st.write("Metadata disponible:")
+            #st.write("Versiones y Fechas en CRAN")
+            #text-align: center;
+            st.markdown("<h3 style=' font-size:24px; font-weight: bold;'>Versiones y Fechas en CRAN</h3>",unsafe_allow_html=True)
+
             st.dataframe(metadata if metadata is not None else "No hay metadata.")
 
     # Columna derecha: Gráficos
@@ -540,7 +558,6 @@ with st.container():
 
             if not all_data.empty:
                 # Generar el primer gráfico
-                st.write("Gráfico de descargas diarias para los paquetes seleccionados:")
                 plot_daily_downloads_with_metadata(all_data, metadata, color_palette)
 
                 # Generar el segundo gráfico
