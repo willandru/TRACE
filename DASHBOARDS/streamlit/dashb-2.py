@@ -107,14 +107,7 @@ with st.container():
 
     # Columna derecha: Gráfico
     with col2:
-        if packages and start_date and end_date:
-            selected_package = packages[0]  # Seleccionar el primer paquete para graficar
-            df = get_download_data(selected_package, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
-            if df is not None:
-                st.write(f"Gráfico para el paquete: {selected_package}")
-                plot_daily_downloads(df)
-            else:
-                st.write("No se encontraron datos para el rango de fechas seleccionado.")
+        
 
 # Separador ------------------------------------------------------------------------------------------------------------
 st.markdown("---")

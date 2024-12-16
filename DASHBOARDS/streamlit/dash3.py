@@ -78,6 +78,19 @@ def get_package_metadata(package_name):
         })
 
 
+#VERIFICAR QUE LOS PAQUETES ESTEN EN CRAN
+# Función para verificar si un paquete está en CRAN
+def is_package_in_cran(package_name):
+    try:
+        url = f"https://crandb.r-pkg.org/{package_name}/all"
+        response = requests.get(url, timeout=5)
+        return response.status_code == 200  # El paquete está en CRAN si la respuesta es 200
+    except requests.RequestException:
+        return False  # Retornar False si ocurre algún error
+
+
+
+
 # Function to collect metadata for all packages
 def collect_metadata_for_packages(packages):
     # Create an empty DataFrame to store metadata for all packages
@@ -171,22 +184,51 @@ def collect_download_data(packages, start_date, end_date):
 
 
 
-# Generar la paleta compartida basada en Set2
-def generate_shared_color_palette(packages):
-    colormap = get_cmap("Set2")  # Usar Set2
-    colors = {package: colormap(idx / len(packages)) for idx, package in enumerate(packages)}
-    return colors
-# Configurar la página
-st.set_page_config(
-    page_title="Dashboard Dinámico",
-    page_icon=":bar_chart:",
-    layout="wide"
-)
+def get_first_colors(cmap_name, num_colors=10):
+    """
+    Returns the first `num_colors` from a given colormap.
+    
+    Parameters:
+    cmap_name (str): Name of the colormap.
+    num_colors (int): Number of colors to extract.
+    
+    Returns:
+    list: List of RGB tuples.
+    """
+    cmap = plt.get_cmap(cmap_name)
+    return [cmap(i / (num_colors - 1)) for i in range(num_colors)]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## PLOT 1
 
 ## PLOT 1
 
 def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
     fig, ax = plt.subplots(figsize=(16, 6))  # Crear la figura y los ejes
+    #fig, ax = plt.subplots(figsize=(20, 10))  # Ancho=20, Alto=10
 
     # Asegurarse de que metadata contiene las columnas requeridas
     if 'package' not in metadata.columns or 'first_cran_date' not in metadata.columns:
@@ -196,18 +238,15 @@ def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
     dataframe['day'] = pd.to_datetime(dataframe['day']).dt.date
     metadata['first_cran_date'] = pd.to_datetime(metadata['first_cran_date']).dt.date
 
-    # Variable para verificar si se añadió la leyenda del marcador de lanzamiento
-    release_marker_added = False
-
     # Graficar descargas diarias para cada paquete
     for column in dataframe.columns[1:]:  # Omitir la columna 'day'
+        color = color_palette.get(column, "black")  # Mapear color basado en el paquete
+
         # Buscar la fecha de publicación para el paquete en metadata
         publication_date = metadata.loc[metadata['package'] == column, 'first_cran_date']
-        color = color_palette[column]  # Usar el color de la paleta compartida
+        pub_date = publication_date.values[0] if not publication_date.empty else None
 
-        if not publication_date.empty:
-            pub_date = publication_date.values[0]  # Obtener la fecha como datetime.date
-
+        if pub_date:
             # Dividir los datos en dos partes: antes y después de la fecha de lanzamiento
             before_release = dataframe[dataframe['day'] < pub_date]
             after_release = dataframe[dataframe['day'] >= pub_date]
@@ -217,32 +256,26 @@ def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
                 new_row = pd.DataFrame({'day': [pub_date], column: [0]})
                 before_release = pd.concat([before_release, new_row], ignore_index=True)
 
-            # Graficar la parte anterior al lanzamiento con transparencia
+            # Graficar partes antes y después del lanzamiento
             ax.plot(before_release['day'], before_release[column], color=color, alpha=0.3)
-
-            # Graficar la parte posterior al lanzamiento con opacidad completa
             ax.plot(after_release['day'], after_release[column], color=color, label=f"{column}")
 
-            # Verificar si existen datos para pub_date en after_release
+            # Marcar fecha de lanzamiento
             if not after_release.empty and pub_date in after_release['day'].values:
                 first_download_value = after_release.loc[after_release['day'] == pub_date, column].values[0]
-
-                # Añadir un marcador rojo para la fecha de lanzamiento
                 ax.scatter(pub_date, 0, color='red', zorder=5, s=100, edgecolor='black')
-
-                # Graficar una línea vertical sólida desde el eje x hasta el primer valor de descargas
-                ax.vlines(pub_date, ymin=0, ymax=first_download_value, colors=color, linestyles='solid', label=None)
+                ax.vlines(pub_date, ymin=0, ymax=first_download_value, colors=color, linestyles='solid')
         else:
             # Si no hay fecha de publicación, graficar normalmente
             ax.plot(dataframe['day'], dataframe[column], color=color, label=column)
 
-    # Añadir "Primer Release" como leyenda explícita al final
-    ax.scatter([], [], color='red', s=100, edgecolor='black', label="Primer Release")  # Punto ficticio para la leyenda
+    # Añadir "Primer Release" como marcador
+    ax.scatter([], [], color='red', s=100, edgecolor='black', label="Primer Release")
 
     # Personalización del gráfico
-    ax.set_title("Daily Downloads for Packages with CRAN Publication Dates", fontsize=16)
-    ax.set_xlabel("Date", fontsize=12)
-    ax.set_ylabel("Downloads", fontsize=12)
+    ax.set_title("Daily Downloads for Packages with CRAN Publication Dates", fontsize=20)
+    ax.set_xlabel("Date", fontsize=16)
+    ax.set_ylabel("Downloads", fontsize=16)
 
     # Formato del eje x
     num_days = (dataframe['day'].max() - dataframe['day'].min()).days
@@ -254,19 +287,40 @@ def plot_daily_downloads_with_metadata(dataframe, metadata, color_palette):
 
     # Leyenda y ajustes finales
     handles, labels = ax.get_legend_handles_labels()
-    handles.append(handles.pop(labels.index("Primer Release")))
-    labels.append(labels.pop(labels.index("Primer Release")))
+    if "Primer Release" in labels:
+        # Reorganizar "Primer Release" al final
+        handles.append(handles.pop(labels.index("Primer Release")))
+        labels.append(labels.pop(labels.index("Primer Release")))
     ax.legend(handles, labels, title=None, fontsize=10, loc="lower center", bbox_to_anchor=(0.5, -0.4), ncol=4)
 
     ax.grid(True, linestyle='--', alpha=0.6)
-    plt.tight_layout()  # Ajustar el diseño del gráfico
+    plt.tight_layout()  # Ajustar el diseño del gráfico 
+    
     st.pyplot(fig)
 
 
 
 
-## PLOT 2
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## PLOT 2
 def plot_cumulative_downloads(dataframe, color_palette):
     # Crear una figura y ejes para el gráfico
     fig, ax = plt.subplots(figsize=(16, 6))
@@ -278,20 +332,18 @@ def plot_cumulative_downloads(dataframe, color_palette):
     cumulative_data = dataframe.copy()
     cumulative_data.iloc[:, 1:] = cumulative_data.iloc[:, 1:].cumsum()
 
-    # Establecer la paleta de colores "Set2"
-    colormap = plt.colormaps['Set2']
-    colors = colormap.colors[:len(cumulative_data.columns[1:])]
-
     # Graficar descargas acumulativas para cada paquete
     for column in cumulative_data.columns[1:]:  # Omitir la columna 'day'
-        ax.plot(cumulative_data['day'], cumulative_data[column], label=f"{column}", color=color_palette[column])
+        # Obtener el color desde la paleta o asignar un color predeterminado (negro)
+        color = color_palette.get(column, "black")
+        ax.plot(cumulative_data['day'], cumulative_data[column], label=f"{column}", color=color)
 
     # Personalización del gráfico
     ax.set_title("Cumulative Daily Downloads for Packages", fontsize=16)
     ax.set_xlabel("Date", fontsize=12)
     ax.set_ylabel("Cumulative Downloads", fontsize=12)
 
-    # Ajustar la leyenda como en Plot 1
+    # Ajustar la leyenda
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(
         handles,
@@ -304,6 +356,7 @@ def plot_cumulative_downloads(dataframe, color_palette):
         frameon=True,  # Añadir borde
         edgecolor="black",  # Borde negro
     )
+
     # Personalizar el cuadro de la leyenda
     legend = ax.get_legend()
     legend.get_frame().set_edgecolor("black")  # Borde negro
@@ -312,7 +365,7 @@ def plot_cumulative_downloads(dataframe, color_palette):
     # Configuración adicional
     ax.grid(True, linestyle='--', alpha=0.5)
     
-    # Dynamic x-axis intervals and grid lines based on the data range
+    # Configuración dinámica del eje x
     num_days = (dataframe['day'].max() - dataframe['day'].min()).days
     if num_days <= 15:
         interval = 1
@@ -320,20 +373,48 @@ def plot_cumulative_downloads(dataframe, color_palette):
         interval = 2
     else:
         interval = 5
-    # Format x-axis labels correctly
+
+    # Formatear las etiquetas del eje x
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
     ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
     plt.xticks(rotation=90)
 
-
-    plt.xticks(rotation=90)
-    plt.tight_layout(rect=[0, 0, 1, 1])  # Ajustar diseño para espacio debajo del gráfico
+    # Ajustar diseño para espacio debajo del gráfico
+    plt.tight_layout(rect=[0, 0, 1, 1])
 
     # Renderizar el gráfico en Streamlit
     st.pyplot(fig)
 
 
+
+#### FIN DECLARACION DE FUNCIONES**********************************************************************************
+### **************************************************************************************************
+### **************************************************************************************************
+### **************************************************************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## INICIO WEB PAGE
+
+# Configurar la página
+st.set_page_config(
+    page_title="Dashboard Dinámico",
+    page_icon=":bar_chart:",
+    layout="wide"
+)
 
 
 
@@ -348,55 +429,87 @@ def plot_cumulative_downloads(dataframe, color_palette):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 # BARRA DE BUSQUEDA -------------------------------------------------------------------------------------------------------
 
 # CSS para centrar y reducir el ancho del input
+
 st.markdown(
     """
     <style>
     div[data-testid="stTextInput"] {
-        width: 50%; /* Ajusta el ancho aquí */
-        margin: 0 auto; /* Centra el input */
+        font-size: 18px; /* Cambiar tamaño de fuente */
+        width: 50%; /* Aumentar el ancho */
+        margin: 0 auto; /* Centrar */
     }
     div[data-testid="stTextInput"] input {
+        padding: 10px; /* Espaciado interno */
         text-align: center; /* Centra el texto dentro del cuadro */
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+st.markdown("<h1 style='font-size:32px;'>Texto Grande</h1>", unsafe_allow_html=True)
+st.markdown("<p style='font-size:20px;'>Texto más pequeño</p>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Entrada de paquetes con estilo centrado y ancho reducido
 input_packages = st.text_input("", "vaccineff, sivirep, serofoi", placeholder="Buscar paquetes...")
-
-
 # Procesar paquetes
 packages = list(dict.fromkeys(pkg.strip() for pkg in input_packages.split(",") if pkg.strip()))
-
-
-#VERIFICAR QUE LOS PAQUETES ESTEN EN CRAN
-
-# Función para verificar si un paquete está en CRAN
-def is_package_in_cran(package_name):
-    try:
-        url = f"https://crandb.r-pkg.org/{package_name}/all"
-        response = requests.get(url, timeout=5)
-        return response.status_code == 200  # El paquete está en CRAN si la respuesta es 200
-    except requests.RequestException:
-        return False  # Retornar False si ocurre algún error
-
 # Filtrar paquetes que están en CRAN
 if packages:
     cran_packages = [pkg for pkg in packages if is_package_in_cran(pkg)]
     packages = cran_packages  # Actualizar la variable 'packages' con los paquetes válidos
 
+# Generar la paleta de colores predefinida una sola vez (mapear nombres de paquetes a colores)
+if packages:
+    num_colors = min(len(packages), 10)  # Limitar a un máximo de 10 colores
+    colors = get_first_colors("Set2", num_colors)
+    color_palette = {pkg: colors[i] for i, pkg in enumerate(packages)}
+else:
+    color_palette = {}
+
+# Debugging outputs for validation
+#st.write("Paquetes seleccionados:", packages)
+#st.write("Paleta de colores generada:", color_palette)
 
 
-color_palette = generate_shared_color_palette(packages)
 
 
 
 
-# PARTE 1 ---------------------------------------------------------------------------------------------------------------
+
+
+
+# PART 1 ---------------------------------------------------------------------------------------------------------------
 
 # Panel superior: Fecha y gráficos
 with st.container():
@@ -404,32 +517,56 @@ with st.container():
 
     # Columna izquierda: Fechas
     with col1:
+        # Selección de fechas
         start_date = st.date_input("Fecha de Inicio", value=datetime(2024, 11, 13))
         end_date = st.date_input("Fecha de Fin", value=datetime(2024, 12, 13))
         st.write("Texto Dinámico")
 
+        if packages and start_date and end_date:
+            # Recopilar metadata
+            metadata = collect_metadata_for_packages(packages)
+
+            # Mostrar metadata debajo de las fechas
+            st.write("Metadata disponible:")
+            st.dataframe(metadata if metadata is not None else "No hay metadata.")
+
     # Columna derecha: Gráficos
     with col2:
         if packages and start_date and end_date:
-            # Recopilar metadatos
-            metadata = collect_metadata_for_packages(packages)
-
             # Recopilar datos de descargas
-            all_data = collect_download_data(packages, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+            all_data = collect_download_data(
+                packages, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+            )
 
             if not all_data.empty:
-                # Generar el primer gráfico dinámicamente
+                # Generar el primer gráfico
                 st.write("Gráfico de descargas diarias para los paquetes seleccionados:")
                 plot_daily_downloads_with_metadata(all_data, metadata, color_palette)
 
-                # Generar el segundo gráfico dinámicamente (cumulative downloads)
+                # Generar el segundo gráfico
                 st.write("Gráfico acumulado de descargas diarias para los paquetes seleccionados:")
                 plot_cumulative_downloads(all_data, color_palette)
             else:
                 st.write("No se encontraron datos para los paquetes seleccionados en el rango de fechas.")
 
 
-# Separador -------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Separador ----------------------------------------------------------------------------------------------------------------------
 st.markdown("---")
 
 
@@ -441,16 +578,21 @@ st.markdown("---")
 
 
 
-# PARTE 2 -------------------------------------------------------------------------------------------------------------
-# Fondo del menú dinámico
-if packages:  # Verificar que haya paquetes válidos
-    with st.container():
-        cols = st.columns(len(packages))  # Generar columnas dinámicamente
-        selected_package = None
-        for col, package in zip(cols, packages):
-            if col.button(package, key=f"btn-{package}"):
-                selected_package = package
 
-    # Panel principal
-    if selected_package:
-        st.write(f"Paquete seleccionado: {selected_package}")
+
+
+
+
+
+# PART 2 -------------------------------------------------------------------------------------------------------------
+
+if packages:
+    # Create dynamic buttons
+    with st.container():
+        cols = st.columns(len(packages))
+        for col, package in zip(cols, packages):
+            if col.button(package):
+                with st.container():
+                    st.write(f"### Paquete seleccionado: {package}")
+                    st.write(f"**Metadata del paquete:** {package}")
+                    st.write(f"**Datos del paquete:** Aquí se mostrarán los datos para {package}")

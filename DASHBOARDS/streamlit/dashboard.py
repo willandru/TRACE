@@ -111,13 +111,17 @@ st.markdown("---")
 # PARTE 2 -------------------------------------------------------------------------------------------------------------
 # Fondo del menú dinámico
 if packages:  # Verificar que haya paquetes válidos
+    # Inicializar el estado de la sesión para el paquete seleccionado
+    if "selected_package" not in st.session_state:
+        st.session_state.selected_package = None
+
+    # Botones dinámicos
     with st.container():
         cols = st.columns(len(packages))  # Generar columnas dinámicamente
-        selected_package = None
         for col, package in zip(cols, packages):
             if col.button(package, key=f"btn-{package}"):
-                selected_package = package
+                st.session_state.selected_package = package  # Actualizar el paquete seleccionado
 
-    # Panel principal
-    if selected_package:
-        st.write(f"Paquete seleccionado: {selected_package}")
+    # Panel principal: Mostrar información del paquete seleccionado
+    if st.session_state.selected_package:
+        st.write(f"Paquete seleccionado: {st.session_state.selected_package}")
