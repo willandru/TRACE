@@ -851,30 +851,70 @@ with st.container():
 # Separador ----------------------------------------------------------------------------------------------------------------------
 st.markdown("---")
 
+## PARTE 2
+## PARTE 2
+# Obtener los colores iniciales
+default_colors = get_first_colors_hardcoded()
 
+# Crear un diccionario inicial de colores por paquete
+color_mapping = {package: default_colors[i % len(default_colors)] for i, package in enumerate(packages)}
 
+# Crear la interfaz dinámica
+st.markdown(
+    """
+    <style>
+    .dropdown-container {
+        display: flex; 
+        align-items: center; 
+        margin-bottom: 10px;
+    }
+    .dropdown-package {
+        width: 200px;
+        height: 35px;
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-size: 14px;
+        appearance: none;
+        text-align: center;
+        color: white;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
+st.markdown("### Selección de colores dinámicos para los paquetes:")
 
+# Generate the dropdowns for each package
+for package in packages:
+    # Get the current color for the package
+    current_color = color_mapping[package]
 
+    # Render a dropdown for the package
+    st.markdown(
+        f"""
+        <div class="dropdown-container">
+            <select id="dropdown-{package}" class="dropdown-package" style="background-color: {current_color};" onchange="updateDropdown(this, '{package}')">
+                {"".join([f'<option value="{color}" {"selected" if color == current_color else ""} style="background-color: {color}; color: white;">{package}</option>' for color in default_colors])}
+            </select>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-
-
-
-
-
-
-
-
-
-# PART 2 -------------------------------------------------------------------------------------------------------------
-
-if packages:
-    # Create dynamic buttons
-    with st.container():
-        cols = st.columns(len(packages))
-        for col, package in zip(cols, packages):
-            if col.button(package):
-                with st.container():
-                    st.write(f"### Paquete seleccionado: {package}")
-                    st.write(f"**Metadata del paquete:** {package}")
-                    st.write(f"**Datos del paquete:** Aquí se mostrarán los datos para {package}")
+# JavaScript to dynamically update the dropdown background color
+st.markdown(
+    """
+    <script>
+    function updateDropdown(dropdown, packageName) {
+        const selectedColor = dropdown.value;
+        dropdown.style.backgroundColor = selectedColor;
+        dropdown.style.color = "white";
+    }
+    </script>
+    """,
+    unsafe_allow_html=True,
+)
