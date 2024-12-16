@@ -639,7 +639,7 @@ st.markdown("""
 st.markdown("""
     <div class="header">
         <img src="https://epiverse-trace.github.io/blueprints/logo_white.svg" alt="Logo izquierdo">
-        <h1>Mi Título Personalizado</h1>
+        
          
     </div>
 """, unsafe_allow_html=True)
