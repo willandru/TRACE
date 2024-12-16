@@ -183,24 +183,16 @@ def collect_download_data(packages, start_date, end_date):
         return pd.DataFrame()  # Return empty DataFrame if no data
 
 
-
-def get_first_colors(cmap_name, num_colors=10):
+# Función para obtener los primeros 10 colores hardcodeados en HEX
+def get_first_colors_hardcoded():
     """
-    Returns the first `num_colors` from a given colormap.
-    
-    Parameters:
-    cmap_name (str): Name of the colormap.
-    num_colors (int): Number of colors to extract.
+    Returns a predefined list of 10 HEX colors from the 'Set2' colormap.
     
     Returns:
-    list: List of RGB tuples.
+    list: List of HEX color strings.
     """
-    cmap = plt.get_cmap(cmap_name)
-    return [cmap(i / (num_colors - 1)) for i in range(num_colors)]
-
-
-
-
+    return ['#66c2a5', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', 
+            '#a6d854', '#ffd92f', '#e5c494', '#b3b3b3', '#b3b3b3']
 
 
 
@@ -570,6 +562,11 @@ st.markdown(
         box-shadow: 0px 0px 8px rgba(135, 189, 40, 0.5); /* Sombra verde */
     }
 
+    /* Placeholder personalizado */
+    div[data-testid="stTextInput"] input::placeholder {
+        color: #BFBFBF; /* Color gris claro para el placeholder */
+    }
+
     /* Sugerencias de autocompletado */
     input:-webkit-autofill, 
     input:-webkit-autofill:hover, 
@@ -599,7 +596,16 @@ st.markdown(
 
 
 
+# CSS para modificar únicamente el ancho de los widgets de fecha
+st.markdown("""
+    <style>
+    div[data-testid="stDateInput"] {
+        width: 250px !important; /* Define el ancho deseado aquí */
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
+#_--------------------------------------------------------------------------------------
 
 
 
@@ -614,6 +620,7 @@ st.markdown(
 input_packages = st.text_input("", "vaccineff, sivirep, serofoi", placeholder="Buscar paquetes...")
 # Procesar paquetes
 packages = list(dict.fromkeys(pkg.strip() for pkg in input_packages.split(",") if pkg.strip()))
+
 # Filtrar paquetes que están en CRAN
 if packages:
     cran_packages = [pkg for pkg in packages if is_package_in_cran(pkg)]
@@ -621,30 +628,16 @@ if packages:
 
 # Generar la paleta de colores predefinida una sola vez (mapear nombres de paquetes a colores)
 if packages:
-    num_colors = min(len(packages), 10)  # Limitar a un máximo de 10 colores
-    colors = get_first_colors("Set2", num_colors)
+    colors = get_first_colors_hardcoded()  # Usar colores hardcodeados
     color_palette = {pkg: colors[i] for i, pkg in enumerate(packages)}
 else:
     color_palette = {}
 
-# Debugging outputs for validation
-#st.write("Paquetes seleccionados:", packages)
-#st.write("Paleta de colores generada:", color_palette)
 
 
 
 
-print("Hola mundo")
 
-
-# CSS para modificar únicamente el ancho de los widgets de fecha
-st.markdown("""
-    <style>
-    div[data-testid="stDateInput"] {
-        width: 250px !important; /* Define el ancho deseado aquí */
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
 # PART 1 ---------------------------------------------------------------------------------------------------------------
 
@@ -698,7 +691,7 @@ with st.container():
                 plot_cumulative_downloads(all_data, color_palette)
 
                 st.write("Gráfico de Tasa de Crecimiento para los paquetes seleccionados:")
-                plot_growth_rate(all_data, metadata, color_palette)
+                #plot_growth_rate(all_data, metadata, color_palette)
 
             else:
                 st.write("No se encontraron datos para los paquetes seleccionados en el rango de fechas.")
