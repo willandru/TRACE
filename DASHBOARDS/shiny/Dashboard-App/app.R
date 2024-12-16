@@ -51,13 +51,13 @@ ui <- dashboardPage(
                   box(
                     title = "Seleccionar Fechas",
                     width = 12,
-                    dateInput("start_date", "Fecha de inicio:", value = "2024-11-06", max = Sys.Date()),
+                    dateInput("start_date", "Fecha de inicio:", value = "2024-12-02", max = Sys.Date()),
                     dateInput("end_date", "Fecha de fin:", value = Sys.Date(), max = Sys.Date())
                   ),
                   box(
                     title = "Seleccionar Paquetes",
                     width = 12,
-                    textInput("packages", "Paquetes (separados por comas):", value = "sivirep, vaccineff, serofoi"),
+                    textInput("packages", "Paquetes (separados por comas):", value = "vaccineff, sivirep, epiCo"),
                     actionButton("update", "Actualizar Gráfico")
                   )
                 ),
@@ -267,128 +267,121 @@ server <- function(input, output, session) {
   })
   
 
-
-
-
-
-
-
-
+output$cumulative_plot <- renderPlot({
+  data <- download_data() # Fetch data dynamically
+  releases <- release_dates() # Fetch release dates
+  req(data, releases, nrow(data) > 0)
   
+  # Identify all unique packages from data and releases
+  all_packages <- unique(c(data$package, releases$package))
   
+  # Assign consistent colors for all packages
+  color_palette <- if (length(all_packages) < 3) {
+    c("#66C2A5", "#FC8D62", "#8DA0CB")[1:length(all_packages)]
+  } else {
+    brewer.pal(min(length(all_packages), 8), "Set2")
+  }
+  package_colors <- setNames(color_palette, all_packages)
   
+  # Parse user-input packages and find valid CRAN packages
+  input_packages <- strsplit(input$packages, ",\\s*")[[1]] %>% trimws()
+  valid_packages <- intersect(input_packages, all_packages)
   
-  ## PLOT 2 -----------------------------------------------------------------------
+  # If no valid packages, return an empty plot
+  if (length(valid_packages) == 0) {
+    return(ggplot() +
+             labs(
+               title = "No valid packages found on CRAN",
+               x = "Fecha",
+               y = "Descargas Acumuladas"
+             ))
+  }
   
-  output$cumulative_plot <- renderPlot({
-    data <- download_data() # Datos dinámicos basados en fechas
-    releases <- release_dates() # Fechas de lanzamientos
-    req(data, releases, nrow(data) > 0)
-    
-    paquetes <- unique(data$package) # Paquetes seleccionados
-    
-    # Ajustar colores para 1 o 2 paquetes
-    colores <- if (length(paquetes) < 3) {
-      c("#66C2A5", "#FC8D62", "#8DA0CB")[1:length(paquetes)]
-    } else {
-      brewer.pal(min(length(paquetes), 8), "Set2")
-    }
-    
-    # Filtrar datos según las fechas del usuario
-    data <- data %>%
-      filter(date >= input$start_date & date <= input$end_date)
-    
-    # Manejar paquetes sin datos en el rango
-    paquetes_sin_datos <- setdiff(paquetes, unique(data$package))
-    if (length(paquetes_sin_datos) > 0) {
-      data_sin_datos <- do.call(rbind, lapply(paquetes_sin_datos, function(pkg) {
-        data.frame(
-          date = seq(input$start_date, input$end_date, by = "day"),
-          cumulative_count = 0,
-          package = pkg
-        )
-      }))
-    } else {
-      data_sin_datos <- NULL
-    }
-    
-    # Calcular descargas acumuladas solo para paquetes con datos
-    cumulative_data <- data %>%
-      group_by(package) %>%
-      arrange(date) %>%
-      mutate(cumulative_count = cumsum(count)) %>%
-      ungroup()
-    
-    # Combinar datos acumulados con datos de paquetes faltantes
+  # Filter data for valid packages and input date range
+  data <- data %>%
+    filter(package %in% valid_packages) %>%
+    filter(date >= input$start_date & date <= input$end_date)
+  
+  # Handle packages with no data in the date range
+  missing_packages <- setdiff(valid_packages, unique(data$package))
+  if (length(missing_packages) > 0) {
+    data_sin_datos <- do.call(rbind, lapply(missing_packages, function(pkg) {
+      data.frame(
+        date = seq(as.Date(input$start_date), as.Date(input$end_date), by = "day"),
+        count = 0,
+        cumulative_count = 0,
+        package = pkg
+      )
+    }))
+  } else {
+    data_sin_datos <- NULL
+  }
+  
+  # Calculate cumulative downloads for packages with data
+  cumulative_data <- data %>%
+    group_by(package) %>%
+    arrange(date) %>%
+    mutate(cumulative_count = cumsum(count)) %>%
+    ungroup()
+  
+  # Combine cumulative data with missing data
+  if (!is.null(data_sin_datos)) {
     cumulative_data <- bind_rows(cumulative_data, data_sin_datos)
-    
-    # Dividir datos en antes y después del primer release
-    plot_data <- list()
-    for (pkg in paquetes) {
-      pkg_data <- cumulative_data %>% filter(package == pkg)
-      pkg_release <- releases %>% filter(package == pkg) %>% arrange(date) %>% slice(1) # Primer release
-      release_date <- pkg_release$date[1]
-      
-      if (is.na(release_date)) next # Saltar si no hay release
-      
-      if (input$start_date < release_date) {
-        before_release <- pkg_data %>% filter(date < release_date)
-        after_release <- pkg_data %>% filter(date >= release_date)
-        
-        # Añadir punto de conexión
-        connection_point <- data.frame(date = release_date, cumulative_count = 0, package = pkg)
-        before_release <- bind_rows(before_release, connection_point)
-        
-        plot_data[[pkg]]$before <- before_release
-        plot_data[[pkg]]$after <- after_release
-      } else {
-        plot_data[[pkg]]$single <- pkg_data
-      }
-    }
-    
-    # Crear el gráfico
-    p <- ggplot()
-    for (pkg in names(plot_data)) {
-      if (!is.null(plot_data[[pkg]]$before) && nrow(plot_data[[pkg]]$before) > 1) {
-        p <- p + geom_line(
-          data = plot_data[[pkg]]$before,
-          aes(x = date, y = cumulative_count, color = package),
-          linewidth = 1.2,
-          alpha = 0
-        )
-      }
-      
-      if (!is.null(plot_data[[pkg]]$after) && nrow(plot_data[[pkg]]$after) > 1) {
-        p <- p + geom_line(
-          data = plot_data[[pkg]]$after,
-          aes(x = date, y = cumulative_count, color = package),
-          linewidth = 1.2
-        )
-      }
-    }
-    
-    # Dibujar los puntos del release
-    valid_releases <- releases %>%
-      filter(!is.na(date) & date >= input$start_date & date <= input$end_date)
-    
-    p <- p + geom_point(
+  }
+  
+  # Remove packages with only zero cumulative_count
+  cumulative_data <- cumulative_data %>%
+    group_by(package) %>%
+    filter(any(cumulative_count > 0)) %>%
+    ungroup()
+  
+  # Prepare release date information for valid packages
+  valid_releases <- releases %>%
+    filter(package %in% unique(cumulative_data$package)) %>%
+    filter(date >= input$start_date & date <= input$end_date)
+  
+  # Add transparency for lines before the first release
+  cumulative_data <- cumulative_data %>%
+    left_join(valid_releases, by = "package", suffix = c("", "_release")) %>%
+    mutate(
+      line_alpha = ifelse(date < date_release, 0, 1) # Transparency before release
+    )
+  
+  # Ensure vertical lines have correct y-axis limits
+  max_y <- max(cumulative_data$cumulative_count, na.rm = TRUE)
+  
+  # Create the plot
+  ggplot(cumulative_data, aes(x = date, y = cumulative_count, color = package)) +
+    geom_line(aes(alpha = line_alpha), linewidth = 1.2) + # Use alpha for transparency
+    geom_point( # Add points for release dates
       data = valid_releases,
       aes(x = date, y = 0, color = package),
       size = 3,
       shape = 21,
       fill = "white"
-    )
-    
-    # Finalizar el gráfico
-    p + labs(
+    ) +
+    geom_segment( # Add vertical lines for release dates
+      data = valid_releases,
+      aes(x = date, xend = date, y = 0, yend = max_y, color = package),
+      linewidth = 1,
+      linetype = "dashed", 
+      alpha =0
+    ) +
+    labs(
       title = "Descargas Acumuladas",
       x = "Fecha",
       y = "Descargas Acumuladas",
       color = "Paquete"
     ) +
-      scale_color_manual(values = setNames(colores, paquetes)) +
-      theme_minimal()
-  })
+    scale_color_manual(values = package_colors) + # Apply consistent colors
+    scale_alpha_identity() + # Use pre-defined alpha values
+    theme_minimal()
+})
+
+
+  
+
+  
   
   
   ##PLOT 3-----------------------------------------------------------------------
