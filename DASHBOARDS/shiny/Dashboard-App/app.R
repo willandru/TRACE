@@ -51,13 +51,13 @@ ui <- dashboardPage(
                   box(
                     title = "Seleccionar Fechas",
                     width = 12,
-                    dateInput("start_date", "Fecha de inicio:", value = "2024-12-02", max = Sys.Date()),
+                    dateInput("start_date", "Fecha de inicio:", value = "2024-10-01", max = Sys.Date()),
                     dateInput("end_date", "Fecha de fin:", value = Sys.Date(), max = Sys.Date())
                   ),
                   box(
                     title = "Seleccionar Paquetes",
                     width = 12,
-                    textInput("packages", "Paquetes (separados por comas):", value = "vaccineff, sivirep, epiCo"),
+                    textInput("packages", "Paquetes (separados por comas):", value = "vaccineff, sivirep, serofoi"),
                     actionButton("update", "Actualizar Gráfico")
                   )
                 ),
@@ -146,7 +146,6 @@ server <- function(input, output, session) {
   
   
   #PLOT 1 ---------------------------------------------
-  
   output$trend_plot <- renderPlot({
     data <- download_data() # Actualización dinámica por fechas
     releases <- release_dates() # Actualización manual por botón
@@ -257,6 +256,15 @@ server <- function(input, output, session) {
       )
     }
     
+  
+    
+    # Ajustar escala del eje X con intervalos dinámicos
+    p <- p + scale_x_date(
+      limits = as.Date(c(input$start_date, input$end_date)) # Límites dinámicos
+                                # Intervalos dinámicos
+                                    # Formato dinámico
+    )
+    
     # Finalizar el gráfico
     p + labs(title = "Tendencia de Descargas Diarias",
              x = "Fecha",
@@ -266,6 +274,10 @@ server <- function(input, output, session) {
       theme_minimal()
   })
   
+  
+  
+  
+#PLOT 2
 
 output$cumulative_plot <- renderPlot({
   data <- download_data() # Fetch data dynamically
@@ -385,76 +397,82 @@ output$cumulative_plot <- renderPlot({
   
   
   ##PLOT 3-----------------------------------------------------------------------
+output$growth_rate_plot <- renderPlot({
+  # Descargar datos y fechas de releases
+  data <- download_data()
+  releases <- release_dates()
+  req(data, releases, nrow(data) > 0)
   
+  paquetes <- unique(data$package) # Paquetes seleccionados
   
-  output$growth_rate_plot <- renderPlot({
-    # Descargar datos y fechas de releases
-    data <- download_data()
-    releases <- release_dates()
-    req(data, releases, nrow(data) > 0)
-    
-    paquetes <- unique(data$package) # Paquetes seleccionados
-    
-    # Filtrar fechas según input
-    start_date <- input$start_date
-    end_date <- input$end_date
-    
-    # Unir datos con la fecha de lanzamiento
-    data <- data %>%
-      left_join(releases, by = "package") %>%
-      filter(!is.na(date.x) & !is.na(date.y)) %>% # Validar fechas
-      mutate(
-        days_in_cran = as.numeric(date.x - date.y), # Días desde el lanzamiento
-        growth_rate = ifelse(days_in_cran >= 0, count / (days_in_cran + 1), NA) # Evitar división por 0
-      ) %>%
-      filter(date.x >= start_date & date.x <= end_date) # Filtrar por rango input
-    
-    # Filtrar fechas de primer release dentro del rango
-    valid_releases <- releases %>%
-      filter(date >= start_date & date <= end_date)
-    
-    # Datos para las líneas verticales (solo lanzamientos dentro del rango)
-    vertical_segments <- data %>%
-      filter(date.x == date.y & date.x >= start_date & date.x <= end_date) %>%
-      group_by(package) %>%
-      summarize(
-        date = date.x[1],
-        growth_rate = growth_rate[1]
-      )
-    
-    # Manejo de colores
-    colores <- if (length(paquetes) < 3) {
-      c("#66C2A5", "#FC8D62", "#8DA0CB")[1:length(paquetes)]
-    } else {
-      brewer.pal(min(length(paquetes), 8), "Set2")
-    }
-    
-    # Crear el gráfico
-    ggplot(data, aes(x = date.x, y = growth_rate, color = package)) +
-      geom_line(linewidth = 1.2) + # Línea de tasa de crecimiento
-      geom_point( # Punto sólido en la fecha de primer release
-        data = vertical_segments,
-        aes(x = date, y = 0, color = package),
-        size = 3,
-        shape = 21,
-        fill = "white"
-      ) +
-      geom_segment( # Línea vertical sólida desde y = 0 hasta la tasa de crecimiento
-        data = vertical_segments,
-        aes(x = date, xend = date, y = 0, yend = growth_rate, color = package),
-        linewidth = 1,
-        linetype = "dashed",
-      ) +
-      labs(
-        title = "Tasa de Crecimiento",
-        x = "Fecha",
-        y = "Tasa de Crecimiento (descargas/días en CRAN)",
-        color = "Paquete"
-      ) +
-      scale_color_manual(values = setNames(colores, paquetes)) +
-      theme_minimal()
-  })
+  # Filtrar fechas según input
+  start_date <- input$start_date
+  end_date <- input$end_date
   
+  # Unir datos con la fecha de lanzamiento
+  data <- data %>%
+    left_join(releases, by = "package") %>%
+    filter(!is.na(date.x) & !is.na(date.y)) %>% # Validar fechas
+    mutate(
+      days_in_cran = as.numeric(date.x - date.y), # Días desde el lanzamiento
+      growth_rate = ifelse(days_in_cran >= 0, count / (days_in_cran + 1), NA), # Evitar división por 0
+      log_Y = ifelse(growth_rate > 0, log10(growth_rate), 0) # Transformar >0, mantener 0 como 0
+    ) %>%
+    filter(date.x >= start_date & date.x <= end_date) # Filtrar por rango input
+  
+  # Filtrar fechas de primer release dentro del rango
+  valid_releases <- releases %>%
+    filter(date >= start_date & date <= end_date)
+  
+  # Datos para las líneas verticales (solo lanzamientos dentro del rango)
+  vertical_segments <- data %>%
+    filter(date.x == date.y & date.x >= start_date & date.x <= end_date) %>%
+    group_by(package) %>%
+    summarize(
+      date = date.x[1],
+      growth_rate = growth_rate[1],
+      log_Y = ifelse(growth_rate > 0, log10(growth_rate), 0) # Mantener los ceros visibles
+    )
+  
+  # Manejo de colores
+  colores <- if (length(paquetes) < 3) {
+    c("#66C2A5", "#FC8D62", "#8DA0CB")[1:length(paquetes)]
+  } else {
+    brewer.pal(min(length(paquetes), 8), "Set2")
+  }
+  
+  # Crear el gráfico
+  ggplot(data, aes(x = date.x, y = log_Y, color = package)) + # Usar la columna log_Y
+    geom_line(linewidth = 1.2) + # Línea de tasa de crecimiento
+    geom_segment( # Línea vertical sólida desde 0 hasta la tasa de crecimiento
+      data = vertical_segments,
+      aes(x = date, xend = date, y = 0, yend = log_Y, color = package),
+      linewidth = 1,
+      linetype = "dashed"
+    ) +
+    geom_point( # Punto sólido en la fecha de primer release
+      data = vertical_segments,
+      aes(x = date, y = log_Y, color = package),
+      size = 3,
+      shape = 21,
+      fill = "white"
+    ) +
+    labs(
+      title = "Tasa de Crecimiento",
+      x = "Fecha",
+      y = "Tasa de Crecimiento (log10(descargas))",
+      color = "Paquete"
+    ) +
+    scale_color_manual(values = setNames(colores, paquetes)) +
+    scale_y_continuous(
+      breaks = c(0, 0.1, 1, 10, 100), # Escala personalizada
+      labels = c("0", "10⁻¹", "10⁰", "10¹", "10²") # Mostrar "0" para el cero
+    ) +
+    theme_minimal()
+})
+
+
+
   
   
   
