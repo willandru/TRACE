@@ -1,0 +1,140 @@
+
+```{r paragraph-viruses-age-groups}
+text_cons_viruses <-
+  get_cons_viruses_age_text(dataset = viruses_age_groups,
+                            text_group = ", para los niños entre 2 y 4 años 
+                            se presentan casos de ")
+```
+
+En la figura 3 se presenta el consolidado de los virus respiratorios por los diferentes grupos de edad, en los niños menores de 2 años las mayores frecuencias son de casos de `r text_cons_viruses`.
+
+\newpage
+
+```{r plot-distribution-sars, include=TRUE, fig.height=4, fig.width=5.7, fig.align='right', fig.cap="Distribución porcentual de virus respiratorios y SARS-CoV-2 por grupo de edad, Laboratorio de Salud Pública Bogotá."}
+plot_age_group_distribution(sars_viruses_age_groups, var_y = "casos",
+                            include_sars = TRUE)
+```
+
+```{r table-distribution-sars, fig.align='right'}
+trans_sars_age_groups <-
+  convert_age_groups_as_cols(dataset = sars_viruses_age_groups)
+plot_table_legend(report_data = trans_sars_age_groups,
+                  include_sars = TRUE)
+```
+
+```{r paragraph-sars-age-groups}
+text_cons_vrs_sars <-
+  get_cons_viruses_age_text(dataset = sars_viruses_age_groups,
+                            text_group = ", en el grupo de 2 a 4
+años, ")
+```
+
+Al incluir el virus de SARS-CoV-2 en la cuenta de los virus
+respiratorios, se observa que, en los menores de 2 años años las
+frecuencias son para `r text_cons_vrs_sars`. A continuación, se presenta la circulación acumulada de 
+los virus respiratorios de forma desagregada por tipo de vigilancia, 
+según grupo de edad (figura 4). También se ha incluido al SARS-CoV-2.
+
+\newpage
+
+```{r distribution-esi-age-groups}
+esi_age_groups <-
+  get_distribution_surveillance(report_data = other_viruses_cleaned_data,
+                                include_sars = TRUE,
+                                surveillance_type = "esi",
+                                epiweek = params$epiweek)
+```
+
+```{r plot-distribution-esi-age-groups, include=TRUE, fig.height=4, fig.width=5.7, fig.align='right', warning=FALSE, include=TRUE, message=FALSE, fig.cap="Circulación de virus respiratorios por tipo de vigilancia y según grupo de edad, Laboratorio de Salud Pública. \\linebreak \\linebreak Distribución de virus respiratorios en casos de ESI, según grupos de edad."}
+plot_age_group_distribution(esi_age_groups,
+                            include_sars = TRUE)
+```
+
+```{r table-distribution-esi-age-groups, fig.align='right'}
+trans_esi_age_groups <-
+  convert_age_groups_as_cols(dataset = esi_age_groups)
+plot_table_legend(report_data = trans_esi_age_groups,
+                  include_sars = TRUE)
+```
+
+\newpage
+
+**Distribución de virus respiratorios en casos de IRA Grave, según
+grupos de edad**
+
+```{r, distribution-irag-grave-age-groups}
+irag_grave_age_groups <-
+  get_distribution_surveillance(other_viruses_cleaned_data,
+                                include_sars = TRUE,
+                                surveillance_type = "irag_grave",
+                                epiweek = params$epiweek)
+```
+
+```{r plot-distribution-irag-grave-age-groups, include=TRUE, fig.height=4, fig.width=5.7, fig.align='right'}
+plot_age_group_distribution(irag_grave_age_groups, include_sars = TRUE)
+```
+
+```{r table-distribution-irag-grave-age-groups, fig.align='right'}
+trans_irag_grave_age_groups <-
+  convert_age_groups_as_cols(dataset = irag_grave_age_groups)
+plot_table_legend(report_data = trans_irag_grave_age_groups,
+                  include_sars = TRUE)
+```
+
+\newpage
+
+**Distribución de virus respiratorios en casos de IRAG Inusitado, según
+grupos de edad.**
+
+```{r distribution-irag-inusitado-age-groups}
+irag_inusitado_age_groups <-
+  get_distribution_surveillance(other_viruses_cleaned_data,
+                                include_sars = TRUE,
+                                surveillance_type = "irag_inusitado",
+                                epiweek = params$epiweek)
+irag_inusitado_age_groups <- irag_inusitado_age_groups %>% arrange(grupo_edad)
+```
+
+```{r plot-distribution-irag-inusitado-age-groups, include=TRUE, fig.height=4, fig.width=5.7, fig.align='right'}
+plot_age_group_distribution(irag_inusitado_age_groups,
+                            include_sars = TRUE)
+```
+
+```{r table-distribution-irag-inusitado-age-groups, fig.align='right'}
+trans_irag_grave_age_groups <-
+  convert_age_groups_as_cols(dataset = irag_inusitado_age_groups)
+plot_table_legend(report_data = trans_irag_grave_age_groups,
+                  include_sars = TRUE)
+```
+
+En la figura 5 se puede observar el comportamiento de los virus
+identificados tanto por la vigilancia centinela como por la vigilancia
+del IRAG inusitado, mediante las dos metodologías: panel respiratorio Allplex y
+RT-PCR.
+
+```{r distribution-test-epiweek}
+test_distribution_epiweek <-
+  get_distribution_test(report_data = other_viruses_cleaned_data,
+                        include_sars = FALSE)
+```
+
+```{r plot-distribution-test-epiweek, include=TRUE, fig.height=7, fig.width=12, fig.cap="Circulación de virus respiratorios en casos de IRAG identificados por por panel respiratorio Allplex y prueba molecular, Laboratorio de Salud Pública."}
+plot_distribution_epiweek(report_data =
+                            test_distribution_epiweek$viruses_epiweeks,
+                          var_y = "casos",
+                          var_fill = "etiqueta",
+                          positives =
+                          test_distribution_epiweek$cases_epiweeks)
+```
+
+```{r distribution-epiweek}
+distribution_epiweek <-
+  get_cases_epiweeks(data_grouped =
+                       test_distribution_epiweek$cases_epiweeks,
+                     col_epiweek = "semanaepidemiologicavegeneral",
+                     table = TRUE)
+```
+
+En las semanas transcurridas de `r current_year` se aprecia la positividad para
+cualquier virus respiratorio, diferentes al SARS-CoV-2, en la siguiente
+tabla.

@@ -27,6 +27,9 @@ get_release_dates <- function(package_name) {
 }
 
 
+LINE_WIDTH <- 0.7
+
+
 # Interfaz del Dashboard
 ui <- dashboardPage(
   dashboardHeader(title = "Epiverse R Packages"),
@@ -223,7 +226,7 @@ server <- function(input, output, session) {
         p <- p + geom_line(
           data = plot_data[[pkg]]$before,
           aes(x = date, y = count, color = package),
-          linewidth = 1.2,
+          linewidth = LINE_WIDTH,
           alpha = 0 # Transparente
         )
       }
@@ -232,7 +235,7 @@ server <- function(input, output, session) {
         p <- p + geom_line(
           data = plot_data[[pkg]]$after,
           aes(x = date, y = count, color = package),
-          linewidth = 1.2
+          linewidth = LINE_WIDTH
         )
       }
       
@@ -240,7 +243,7 @@ server <- function(input, output, session) {
         p <- p + geom_line(
           data = plot_data[[pkg]]$single,
           aes(x = date, y = count, color = package),
-          linewidth = 1.2
+          linewidth = LINE_WIDTH
         )
       }
     }
@@ -251,7 +254,7 @@ server <- function(input, output, session) {
       p <- p + geom_segment(
         data = vertical_data,
         aes(x = date, xend = date, y = start_count, yend = end_count, color = package),
-        linewidth = 1.2, # Línea sólida
+        linewidth = LINE_WIDTH, # Línea sólida
         linetype = "dashed" # Tipo de línea sólida
       )
     }
@@ -364,7 +367,7 @@ output$cumulative_plot <- renderPlot({
   
   # Create the plot
   ggplot(cumulative_data, aes(x = date, y = cumulative_count, color = package)) +
-    geom_line(aes(alpha = line_alpha), linewidth = 1.2) + # Use alpha for transparency
+    geom_line(aes(alpha = line_alpha), linewidth = LINE_WIDTH) + # Use alpha for transparency
     geom_point( # Add points for release dates
       data = valid_releases,
       aes(x = date, y = 0, color = package),
@@ -375,7 +378,7 @@ output$cumulative_plot <- renderPlot({
     geom_segment( # Add vertical lines for release dates
       data = valid_releases,
       aes(x = date, xend = date, y = 0, yend = max_y, color = package),
-      linewidth = 1,
+      linewidth = LINE_WIDTH,
       linetype = "dashed", 
       alpha =0
     ) +
@@ -397,6 +400,7 @@ output$cumulative_plot <- renderPlot({
   
   
   ##PLOT 3-----------------------------------------------------------------------
+## PLOT 3 -----------------------------------------------------------------------
 output$growth_rate_plot <- renderPlot({
   # Descargar datos y fechas de releases
   data <- download_data()
@@ -415,8 +419,7 @@ output$growth_rate_plot <- renderPlot({
     filter(!is.na(date.x) & !is.na(date.y)) %>% # Validar fechas
     mutate(
       days_in_cran = as.numeric(date.x - date.y), # Días desde el lanzamiento
-      growth_rate = ifelse(days_in_cran >= 0, count / (days_in_cran + 1), NA), # Evitar división por 0
-      log_Y = ifelse(growth_rate > 0, log10(growth_rate), 0) # Transformar >0, mantener 0 como 0
+      growth_rate = ifelse(days_in_cran >= 0, count / (days_in_cran + 1), NA) # Evitar división por 0
     ) %>%
     filter(date.x >= start_date & date.x <= end_date) # Filtrar por rango input
   
@@ -430,8 +433,7 @@ output$growth_rate_plot <- renderPlot({
     group_by(package) %>%
     summarize(
       date = date.x[1],
-      growth_rate = growth_rate[1],
-      log_Y = ifelse(growth_rate > 0, log10(growth_rate), 0) # Mantener los ceros visibles
+      growth_rate = growth_rate[1]
     )
   
   # Manejo de colores
@@ -442,37 +444,32 @@ output$growth_rate_plot <- renderPlot({
   }
   
   # Crear el gráfico
-  ggplot(data, aes(x = date.x, y = log_Y, color = package)) + # Usar la columna log_Y
-    geom_line(linewidth = 1.2) + # Línea de tasa de crecimiento
-    geom_segment( # Línea vertical sólida desde 0 hasta la tasa de crecimiento
-      data = vertical_segments,
-      aes(x = date, xend = date, y = 0, yend = log_Y, color = package),
-      linewidth = 1,
-      linetype = "dashed"
-    ) +
+  ggplot(data, aes(x = date.x, y = growth_rate, color = package)) +
+    geom_line(linewidth = LINE_WIDTH
+              ) + # Línea de tasa de crecimiento
     geom_point( # Punto sólido en la fecha de primer release
       data = vertical_segments,
-      aes(x = date, y = log_Y, color = package),
+      aes(x = date, y = 0, color = package),
       size = 3,
       shape = 21,
       fill = "white"
     ) +
+    geom_segment( # Línea vertical sólida desde y = 0 hasta la tasa de crecimiento
+      data = vertical_segments,
+      aes(x = date, xend = date, y = 0, yend = growth_rate, color = package),
+      linewidth = LINE_WIDTH,
+      linetype = "dashed",
+    ) +
     labs(
       title = "Tasa de Crecimiento",
       x = "Fecha",
-      y = "Tasa de Crecimiento (log10(descargas))",
+      y = "Tasa de Crecimiento (descargas/días en CRAN)",
       color = "Paquete"
     ) +
     scale_color_manual(values = setNames(colores, paquetes)) +
-    scale_y_continuous(
-      breaks = c(0, 0.1, 1, 10, 100), # Escala personalizada
-      labels = c("0", "10⁻¹", "10⁰", "10¹", "10²") # Mostrar "0" para el cero
-    ) +
-    theme_minimal()
+    theme_minimal() +
+    scale_y_log10()
 })
-
-
-
   
   
   
