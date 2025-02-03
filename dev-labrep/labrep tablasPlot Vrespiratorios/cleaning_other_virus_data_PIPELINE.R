@@ -4,6 +4,7 @@ library(tidyr)
 library(dplyr)
 library(stringr)
 library(stringi)
+library(janitor)
 
 
 
@@ -136,8 +137,7 @@ clean_column <- function(df, column_name) {
   return(df)
 }
 
-library(dplyr)
-library(stringr)
+
 
 replace_string_in_column <- function(df, column_name, search_string, replace_string) {
   df[[column_name]] <- df[[column_name]] %>%
@@ -154,7 +154,6 @@ replace_exact_match <- function(df, column_name, search_string, replace_string) 
 }
 
 
-library(janitor)
 
 fix_colnames <- function(df) {
   df <- df %>% clean_names()
@@ -272,13 +271,73 @@ replace_strings_df <- replace_exact_match(replace_strings_df, "virus_detectados_
 replace_strings_df <- replace_exact_match(replace_strings_df, "virus_detectados_ve_general", "positivo", "Negativo")
 
 
-unique(replace_strings_df$virus_detectados_ve_general)
 
-
+colnames(replace_strings_df)
 #CHECK FRECUENCIES
 tabla_frecuency <- count_values_2(replace_strings_df, "Valor", "ID")
 print(tabla_frecuency, n=40)
 
 
+# COLUMNA  ::  resultado_nuevo_coronavirus_sars_co_v_2_ve_general
 
-  
+replace_strings_df <- replace_string_in_column(replace_strings_df, "resultado_nuevo_coronavirus_sars_co_v_2_ve_general", "Positivo", "Positivo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "resultado_nuevo_coronavirus_sars_co_v_2_ve_general", "Nega", "Negativo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "resultado_nuevo_coronavirus_sars_co_v_2_ve_general", "no cumple", "Negativo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "resultado_nuevo_coronavirus_sars_co_v_2_ve_general", "no se rea", "Negativo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "resultado_nuevo_coronavirus_sars_co_v_2_ve_general", "ndeter", "Negativo")
+
+unique(replace_strings_df$resultado_nuevo_coronavirus_sars_co_v_2_ve_general)
+
+
+
+# COLUMNA  ::  adenovirus_ad_v_por_rt_pcr_ve_general
+
+
+replace_strings_df <- replace_string_in_column(replace_strings_df, "adenovirus_ad_v_por_rt_pcr_ve_general", "Posi", "Positivo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "adenovirus_ad_v_por_rt_pcr_ve_general", "POSI", "Positivo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "adenovirus_ad_v_por_rt_pcr_ve_general", "Nega", "Negativo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "adenovirus_ad_v_por_rt_pcr_ve_general", "no se rea", "Negativo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "adenovirus_ad_v_por_rt_pcr_ve_general", "insuf", "Negativo")
+replace_strings_df <- replace_exact_match(replace_strings_df, "adenovirus_ad_v_por_rt_pcr_ve_general", "Adenovirus", "Positivo")
+
+
+unique(replace_strings_df$virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general)
+
+# COLUMNA  ::  virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general
+
+replace_strings_df <- replace_string_in_column(replace_strings_df, "virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general", "Aden", "Negativo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general", "Posi", "Positivo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general", "POSI", "Positivo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general", "Posi", "Positivo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general", "Posi", "Positivo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general", "Sici", "Positivo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general", "Sincitial", "Positivo")
+
+replace_strings_df <- replace_string_in_column(replace_strings_df, "virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general", "Neg", "Negativo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general", "no se", "Negativo")
+
+
+# COLUMNA  ::  influenza_a_por_rt_pcr_ve_general
+
+replace_strings_df <- replace_string_in_column(replace_strings_df, "influenza_a_por_rt_pcr_ve_general", "NEG", "Negativo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "influenza_a_por_rt_pcr_ve_general", "POS", "Positivo")
+
+unique(replace_strings_df$influenza_a_por_rt_pcr_ve_general)
+
+
+# COLUMNA  ::  influenza_b_por_rt_pcr_ve_general
+
+replace_strings_df <- replace_string_in_column(replace_strings_df, "influenza_b_por_rt_pcr_ve_general", "NEG", "Negativo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "influenza_b_por_rt_pcr_ve_general", "POS", "Positivo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "influenza_b_por_rt_pcr_ve_general", "Neg", "Negativo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "influenza_b_por_rt_pcr_ve_general", "Pos", "Positivo")
+replace_strings_df <- replace_string_in_column(replace_strings_df, "influenza_b_por_rt_pcr_ve_general", "no se rea", "Negativo")
+
+unique(replace_strings_df$influenza_b_por_rt_pcr_ve_general)
+
+
+# COLUMNA  ::  rango_de_edad_ve_general
+
+replace_strings_df <- clean_column(replace_strings_df, "rango_de_edad_ve_general")
+unique(replace_strings_df$rango_de_edad_ve_general)
+
