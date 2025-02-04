@@ -1,5 +1,12 @@
 url_fci <- "C:/Users/willi/Documents/labrep-import/dataCopied/datos1/BASE FCI SE 23.xlsx"
 
+## ---IMPORTS
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(stringi)
+library(janitor)
 
 #----------------------------FUNCTIONS----------------------------------------------
 #-----------------------------------------------------------------------------------
@@ -64,6 +71,31 @@ fix_colnames <- function(df) {
 }
 
 
+seleccionar_columnas <- function(df, colnames_lista) {
+  df_seleccionado <- df[, colnames_lista, drop = FALSE]
+  return(df_seleccionado)
+}
+
+replace_string_in_column <- function(df, column_name, search_string, replace_string) {
+  df[[column_name]] <- df[[column_name]] %>%
+    # Si hay coincidencia con el search_string, reemplaza toda la fila por replace_string
+    ifelse(str_detect(., search_string), replace_string, .)
+  return(df)
+}
+
+#*****************************UTILS************************************
+#**********************************************************************
+#Cantidad de valores unicos para cada columna
+count_unique_values <- function(df) {
+  result <- data.frame(
+    col_name = names(df),
+    Unicos = sapply(df, function(x) length(unique(x))),
+    row.names = NULL
+  )
+  print(result)
+}
+
+
 #**************************PIPELINE***********************************
 #*********************************************************************
 
@@ -73,17 +105,39 @@ fillmarray_clean <- fix_colnames(filmarray_data)
 
 colnames(fillmarray_clean)
 
-COLUMNAS <- c("radicado",
-              "tipo_edad_ve_general",
-              "rango_de_edad_ve_general",
-              "genero_ve_general",
-              "influenza_a_por_rt_pcr_ve_general",
-              "influenza_b_por_rt_pcr_ve_general",
-              "virus_sincitial_respiratorio_vsr_por_rt_pcr_ve_general",
-              "adenovirus_ad_v_por_rt_pcr_ve_general",
-              "virus_detectados_ve_general",
-              "resultado_nuevo_coronavirus_sars_co_v_2_ve_general"
-)
+COLUMNAS <- c("se",
+              "n_de_orden",
+              "edad",
+              "sexo",
+              "grupo_de_edad",
+              "adenovirus",
+              "coronavirus_229e",
+              "coronavirus_hku1",
+              "coronavirus_nl63",
+              "coronavirus_oc43",
+              "severe_acute_respiratoriy_syndrome_coronavir",
+              "metapneumovirus_humano",
+              "rinovirus_enterovirus_humano",
+              "influenza_a",
+              "influenza_a_h1",
+              "influenza_a_h1_2009",
+              "influenza_a_h3",
+              "influenza_b",
+              "virus_parainfluenza_1",
+              "virus_parainfluenza_2",
+              "virus_parainfluenza_3",
+              "virus_parainfluenza_4",
+              "virus_sincitial_respiratorio",
+              "bordetella_pertussis",
+              "chlamydophila_pneumoniae",
+              "mycoplasma_pneumoniae",
+              "bordetella_parapertussis")
 
 data_cl <- seleccionar_columnas(fillmarray_clean, COLUMNAS)
 
+count_unique_values(data_cl)
+
+unique(data_cl$edad)
+
+data_cl <- replace_string_in_column(data_cl, "sexo", "f","F")
+data_cl <- replace_string_in_column(data_cl, "sexo", "m","M")
