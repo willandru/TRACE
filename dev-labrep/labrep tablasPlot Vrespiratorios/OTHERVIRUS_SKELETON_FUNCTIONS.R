@@ -659,6 +659,33 @@ data_groups <- data_groups %>%
 return(data_groups)
 }
 
+get_colors_age_groups <- function(order = FALSE,
+                                  hex_cods = FALSE,
+                                  include_sars = FALSE) {
+  colors <- c("Adenovirus" = "#9E4B9F",
+              "Rinovirus" = "#145765",
+              "Bocavirus" = "#D49392",
+              "Parainfluenza" = "#64439B",
+              "Influenza B" = "#B94846",
+              "Metapneumovirus" = "#87C762",
+              "VSR" = "#2274BB",
+              "H1N1" = "#7451c0",
+              "H1N1 2009" = "#9DB2D0",
+              "H3N2" = "#7dcea0",
+              "A no subtipificado" = "#F4802D",
+              "Otros Virus" = "#4E82BE")
+  if (include_sars) {
+    colors <- c(colors, "SARS CoV 2" = "#e05f55")
+  }
+  if (order) {
+    colors <- colors[order(names(colors))]
+  }
+  if (hex_cods) {
+    color <- unname(colors)
+  }
+  return(colors)
+}
+
 plot_table_legend <- function(report_data,
                               include_sars = FALSE) {
   report_data$cs <- ""
@@ -688,10 +715,10 @@ plot_table_legend <- function(report_data,
                             width = "1.7cm")
   return(table)
 }
-trans_viruses_age_groups <- convert_age_groups_as_cols(dataset = viruses_age_groups) #PREPARE DATA FOR TABLE
-plot_table_legend(report_data = trans_viruses_age_groups) #TABLE
 
-plot_age_group_distribution(viruses_age_groups)
+
+
+trans_viruses_age_groups <- convert_age_groups_as_cols(dataset = viruses_age_groups) #PREPARE DATA FOR TABLE
 
 #** mine **
 #*
@@ -709,7 +736,7 @@ library(config)
 library(scales)
 
 
-plot_age_group_distribution <- function(report_data,
+plot_age_group_distribution_line <- function(report_data,
                                         var_x = "grupo_edad",
                                         var_y = "porcentaje",
                                         var_fill = "etiqueta",
@@ -759,12 +786,56 @@ plot_age_group_distribution <- function(report_data,
 library(ggplot2)
 library(patchwork)
 
+
+
 plot_age_group_distribution <- function(report_data,
                                         var_x = "grupo_edad",
                                         var_y = "porcentaje",
                                         var_fill = "etiqueta",
                                         stacked_percentage = TRUE,
                                         include_sars = FALSE) {
+  colors <- get_colors_age_groups(include_sars = include_sars)
+  config_path <- system.file("extdata", "config.yml", package = "labrep")
+  category_labels <-
+    config::get(file = config_path,
+                "age_categories")$age_categories
+  plot <- ggplot2::ggplot(report_data,
+                          ggplot2::aes_string(x =
+                                                factor(report_data[[var_x]],
+                                                       levels =
+                                                         category_labels),
+                                              y = var_y,
+                                              fill = var_fill)) +
+    ggplot2::geom_bar(position = "fill",
+                      stat = "identity") +
+    { if (stacked_percentage) {
+      ggplot2::scale_y_continuous(breaks = seq(0, 1, 0.1),
+                                  labels = scales::percent_format())
+    }
+    } +
+    ggplot2::theme_classic() +
+    ggplot2::xlab("Grupo de edad") +
+    ggplot2::ylab("Porcentaje de casos") +
+    ggplot2::theme(legend.position = "none",
+                   text = ggplot2::element_text(family = "Montserrat",
+                                                size = 11),
+                   axis.title = ggplot2::element_text(face = "bold"),
+                   axis.title.x = ggplot2::element_blank()) +
+    ggplot2::scale_fill_manual(values = colors,
+                               name = "Virus respiratorios")
+  return(plot)
+}
+
+
+
+
+
+plot_age_group_distribution_line2 <- function(report_data,
+                                              var_x = "grupo_edad",
+                                              var_y = "porcentaje",
+                                              var_fill = "etiqueta",
+                                              stacked_percentage = TRUE,
+                                              include_sars = FALSE) {
   colors <- get_colors_age_groups(include_sars = include_sars)
   config_path <- system.file("extdata", "config.yml", package = "labrep")
   category_labels <-
@@ -799,122 +870,60 @@ plot_age_group_distribution <- function(report_data,
     ggplot2::scale_fill_manual(values = colors,
                                name = "Virus respiratorios")
   
-  # Línea horizontal como gráfico separado
+  # Líneas horizontales como gráfico separado
   line_plot <- ggplot2::ggplot() +
     ggplot2::geom_segment(aes(x = 0.5, xend = length(category_labels) + 0.5,
-                              y = 0, yend = 0),
+                              y = -10, yend = -10),
                           color = "black", size = 0.5) +
-    ggplot2::theme_void() + # Eliminar todo excepto la línea
+    ggplot2::geom_segment(aes(x = 0.5, xend = length(category_labels) + 0.5,
+                              y = -9, yend = -9),
+                          color = "black", size = 0.5) +
+    ggplot2::geom_segment(aes(x = -3, xend = length(category_labels) + 0.5,
+                              y = -8, yend = -8),
+                          color = "black", size = 0.5) +
+    ggplot2::theme_void() + # Eliminar todo excepto las líneas
     ggplot2::theme(
-      plot.margin = ggplot2::unit(c(0, 1, 1, 1), "lines") # Márgenes ajustados
+      plot.margin = ggplot2::unit(c(0, 1, 10, 10), "lines") # Más espacio inferior
     )
   
-  # Combinar el gráfico principal con la línea horizontal
+  # Combinar el gráfico principal con las líneas horizontales
   combined_plot <- main_plot / line_plot +
-    patchwork::plot_layout(heights = c(10, 1)) # Ajustar proporciones
+    patchwork::plot_layout(heights = c(10, 3)) # Ajustar proporciones para más espacio
   return(combined_plot)
 }
-
-
-library(ggplot2)
-library(patchwork)
-library(gridExtra)
-
-# Define the function to create a plot
-plot_age_group_distribution <- function(report_data,
-                                        var_x = "grupo_edad",
-                                        var_y = "porcentaje",
-                                        var_fill = "etiqueta",
-                                        stacked_percentage = TRUE,
-                                        include_sars = FALSE) {
-  colors <- get_colors_age_groups(include_sars = include_sars)
-  config_path <- system.file("extdata", "config.yml", package = "labrep")
-  category_labels <-
-    config::get(file = config_path,
-                "age_categories")$age_categories
-  
-  # Main bar plot
-  main_plot <- ggplot2::ggplot(report_data,
-                               ggplot2::aes_string(x =
-                                                     factor(report_data[[var_x]],
-                                                            levels =
-                                                              category_labels),
-                                                   y = var_y,
-                                                   fill = var_fill)) +
-    ggplot2::geom_bar(position = "fill", stat = "identity") +
-    { if (stacked_percentage) {
-      ggplot2::scale_y_continuous(breaks = seq(0, 1, 0.1),
-                                  labels = scales::percent_format())
-    }} +
-    ggplot2::theme_classic() +
-    ggplot2::xlab("Grupo de edad") +
-    ggplot2::ylab("Porcentaje de casos") +
+generate_line_plot <- function(category_labels) {
+  ggplot2::ggplot() +
+    ggplot2::geom_segment(aes(x = -10, xend = length(category_labels) + 0.5,
+                              y = -10, yend = -10),
+                          color = "black", size = 0.5) +
+    ggplot2::geom_segment(aes(x = -10, xend = length(category_labels) + 0.5,
+                              y = -9, yend = -9),
+                          color = "black", size = 0.5) +
+    ggplot2::geom_segment(aes(x = -10, xend = length(category_labels) + 0.5,
+                              y = -8, yend = -8),
+                          color = "black", size = 0.5) +
+    ggplot2::scale_x_continuous(limits = c(-10, length(category_labels) + 0.5), expand = c(0, 0)) +
+    ggplot2::scale_y_continuous(limits = c(-15, 0)) + # Ensure enough vertical space for the lines
+    ggplot2::theme_void() +
     ggplot2::theme(
-      legend.position = "none",
-      text = ggplot2::element_text(family = "Montserrat", size = 11),
-      axis.title = ggplot2::element_text(face = "bold"),
-      axis.title.x = ggplot2::element_blank(),
-      plot.margin = ggplot2::unit(c(1, 1, 1, 1), "lines")
-    ) +
-    ggplot2::scale_fill_manual(values = colors,
-                               name = "Virus respiratorios")
-  
-  return(main_plot)
+      plot.margin = ggplot2::unit(c(0, 0, 0, 0), "lines") # Remove margins that might clip lines
+    )
 }
 
-# Define the function to create a table as a grob (table graphic object)
-plot_table_legend <- function(report_data,
-                              include_sars = FALSE) {
-  report_data$cs <- ""
-  report_data <- report_data %>%
-    dplyr::arrange(.data$etiqueta) %>%
-    dplyr::relocate(.data$cs, .after = .data$etiqueta)
-  colors <- get_colors_age_groups(order = TRUE,
-                                  hex_cods = TRUE,
-                                  include_sars = include_sars)
-  
-  # Create a table grob
-  table_grob <- gridExtra::tableGrob(report_data,
-                                     rows = NULL, # Remove row names
-                                     theme = gridExtra::ttheme_default(
-                                       core = list(bg_params = list(fill = colors)),
-                                       colhead = list(fg_params = list(fontface = "bold"))
-                                     ))
-  return(table_grob)
-}
 
-# Combine the plot and the table
-combine_plot_and_table <- function(plot, table) {
-  combined <- plot / table + patchwork::plot_layout(heights = c(3, 1)) # Adjust the heights
-  return(combined)
-}
-
-# Example usage
-# Assuming `viruses_age_groups` is your dataset
-plot <- plot_age_group_distribution(viruses_age_groups)
-table <- plot_table_legend(viruses_age_groups)
-combined <- combine_plot_and_table(plot, table)
-print(combined)
-
-
-library(ggplot2)
-library(gridExtra)
-library(patchwork)
-
-plot_age_group_distribution <- function(report_data,
-                                        var_x = "grupo_edad",
-                                        var_y = "porcentaje",
-                                        var_fill = "etiqueta",
-                                        stacked_percentage = TRUE,
-                                        include_sars = FALSE) {
-  # Colors and category labels
+plot_age_group_distribution_line2 <- function(report_data,
+                                              var_x = "grupo_edad",
+                                              var_y = "porcentaje",
+                                              var_fill = "etiqueta",
+                                              stacked_percentage = TRUE,
+                                              include_sars = FALSE) {
   colors <- get_colors_age_groups(include_sars = include_sars)
   config_path <- system.file("extdata", "config.yml", package = "labrep")
   category_labels <-
     config::get(file = config_path,
                 "age_categories")$age_categories
   
-  # Main bar plot
+  # Gráfico principal
   main_plot <- ggplot2::ggplot(report_data,
                                ggplot2::aes_string(x =
                                                      factor(report_data[[var_x]],
@@ -942,18 +951,84 @@ plot_age_group_distribution <- function(report_data,
     ggplot2::scale_fill_manual(values = colors,
                                name = "Virus respiratorios")
   
-  # Generate table using your plot_table_legend function
-  table_grob <- plot_table_legend(report_data, include_sars)
+  # Generate horizontal line plot
+  line_plot <- generate_line_plot(category_labels)
   
-  # Combine plot and table
-  combined_plot <- main_plot / table_grob +
-    patchwork::plot_layout(heights = c(10, 3)) # Adjust height proportions
+  # Combine the main plot and line plot
+  combined_plot <- main_plot / line_plot +
+    patchwork::plot_layout(heights = c(10, 1)) # Adjust proportions
   
   return(combined_plot)
 }
 
 
+# Líneas horizontales como gráfico separado
+config_path <- system.file("extdata", "config.yml", package = "labrep")
+category_labels <-config::get(file = config_path, "age_categories")$age_categories
+
+generate_line_plot <- function(category_labels) {
+  ggplot2::ggplot() +
+    # Single horizontal line across the full width of the plot
+    ggplot2::geom_segment(aes(x = -10, xend = length(category_labels) + 0.5,
+                              y = -10, yend = -10),
+                          color = "black", size = 0.5) +
+    # Ensure the X-axis includes the negative value
+    ggplot2::scale_x_continuous(limits = c(-10, length(category_labels) + 0.5), expand = c(0, 0)) +
+    # Ensure there's enough space below
+    ggplot2::scale_y_continuous(limits = c(-15, 0), expand = c(0, 0)) +
+    # Disable clipping to show lines outside the axes
+    ggplot2::coord_cartesian(clip = "off") +
+    # Remove all background and axes
+    ggplot2::theme_void() +
+    ggplot2::theme(
+      plot.margin = ggplot2::unit(c(0, 0, 0, 0), "lines") # Minimize extra margins
+    )
+}
+
+
+plot_age_group_distribution_line2(viruses_age_groups)
+
+
+
+
+
+
+# Combinar el gráfico principal con las líneas horizontales
+combined_plot <- plot_age_group_distribution / line_plot +
+  patchwork::plot_layout(heights = c(10, 3))
+
+return(combined_plot)
+
+
+plot_table_legend(report_data = trans_viruses_age_groups) #TABLE
 
 plot_age_group_distribution(viruses_age_groups)
 
+plot_age_group_distribution_line(viruses_age_groups)
 
+plot_age_group_distribution_line2(viruses_age_groups)
+
+# Crear el gráfico de barras llamando la función existente
+main_plot <- plot_age_group_distribution(viruses_age_groups)
+
+# Crear las líneas horizontales
+line_plot <- ggplot2::ggplot() +
+  ggplot2::geom_segment(aes(x = -3, xend = length(category_labels) + 0.5,
+                            y = -10, yend = -10),
+                        color = "black", size = 0.5) +
+  ggplot2::geom_segment(aes(x = -3, xend = length(category_labels) + 0.5,
+                            y = -9, yend = -9),
+                        color = "black", size = 0.5) +
+  ggplot2::geom_segment(aes(x = -3, xend = length(category_labels) + 0.5,
+                            y = -8, yend = -8),
+                        color = "black", size = 0.5) +
+  ggplot2::scale_x_continuous(limits = c(-3, length(category_labels) + 0.5)) +
+  ggplot2::theme_void() +
+  ggplot2::theme(plot.margin = ggplot2::unit(c(0, 1, 10, 10), "lines"))
+
+# Unir ambos gráficos con patchwork
+combined_plot <- main_plot / line_plot + 
+  patchwork::plot_layout(heights = c(10, 3))
+
+# Mostrar el gráfico combinado
+combined_plot
